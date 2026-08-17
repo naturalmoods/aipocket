@@ -1,0 +1,17 @@
+id: openrouter
+name: OpenRouter
+status: official
+console: https://openrouter.ai/settings/credits
+docs: https://openrouter.ai/docs/api/api-reference/credits/get-remaining-credits
+
+auth:
+  type: bearer
+  env: OPENROUTER_API_KEY
+
+balance:
+  url: https://openrouter.ai/api/v1/credits
+  amounts:
+    # OpenRouter reports lifetime figures, not a remaining balance.
+    - total: $.data.total_credits
+      used: $.data.total_usage
+      currency: USD

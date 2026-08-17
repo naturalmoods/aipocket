@@ -1,0 +1,25 @@
+id: neuralwatt
+name: Neuralwatt
+status: undocumented
+console: https://portal.neuralwatt.com/
+docs: https://portal.neuralwatt.com/docs/api/overview
+notes: >-
+  The /v1/quota endpoint is documented as returning "account balance, usage and
+  limits", but the response schema is not published. The paths below are
+  inferred; compare once against the portal and open an issue if they drift.
+
+auth:
+  type: bearer
+  env: NEURALWATT_API_KEY
+
+balance:
+  url: https://api.neuralwatt.com/v1/quota
+  amounts:
+    - path: $.balance_usd
+      currency: USD
+    - path: $.quota.balance_usd
+      currency: USD
+    - path: $.balance
+      currency: USD
+    - path: $.credits_remaining
+      currency: USD

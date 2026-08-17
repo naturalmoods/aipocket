@@ -1,0 +1,37 @@
+# AIPocket configuration — contains NO secrets, only instructions for obtaining them.
+# Location: `aipocket config path`
+#
+# key: forms
+#   env:VAR                     read an environment variable (VAR must be UPPER_CASE)
+#   command:<shell command>     run it, use stdout (1Password, pass, bw, keychain…)
+#   file:/path/to/file          read it (absolute or ~/…, must be chmod 600)
+# Omit `key:` entirely to use the provider's conventional environment variable.
+#
+# The scheme is required and the target has to be shaped like one. That is not
+# pedantry: every real key format is also a valid POSIX variable name, so a
+# looser rule printed a mis-pasted key back out as an "environment variable" in
+# `aipocket providers`, `aipocket audit`, the JSON output and MCP results.
+
+providers:
+  openrouter:
+    key: command:op read op://Private/OpenRouter/credential
+
+  deepseek:
+    key: command:pass show llm/deepseek
+
+  neuralwatt:
+    key: file:~/.secrets/neuralwatt
+
+  entrim:
+    key: env:ENTRIM_API_KEY
+    # Entrim publishes no balance endpoint. If `aipocket probe entrim` finds one,
+    # point at it here — and please send it back as a manifest PR.
+    # balance_url: https://api.entrim.ai/v1/credits
+
+  groq:
+    # Groq exposes no balance API. AIPocket verifies the key and reports this
+    # figure separately; it is never folded into the verified total.
+    manual: 25.00
+
+  # openai:
+  #   disabled: true

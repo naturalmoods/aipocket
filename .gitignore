@@ -1,0 +1,10 @@
+/dist/
+/aipocket
+*.exe
+.env
+
+# Claude Code local settings — personal, must not be published. The glob covers
+# the atomic-write temp files too (settings.local.json.tmp.<pid>.<hash>): they
+# exist for a few milliseconds, which is long enough for a `git add -A` to catch
+# one, and they are a full copy of the settings including local paths.
+.claude/settings.local.json*

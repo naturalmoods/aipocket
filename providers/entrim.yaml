@@ -1,0 +1,23 @@
+id: entrim
+name: Entrim.ai
+status: undocumented
+console: https://entrim.ai/
+notes: >-
+  Entrim exposes an OpenAI-compatible API but publishes no balance endpoint.
+  Run `aipocket probe entrim` to search the usual paths; it prints a ready-made
+  manifest block to contribute back if it finds one.
+
+auth:
+  type: bearer
+  env: ENTRIM_API_KEY
+
+balance:
+  url: https://api.entrim.ai/v1/credits
+  amounts:
+    - path: $.credits_remaining
+      currency: USD
+    - path: $.balance
+      currency: USD
+    - total: $.total_credits
+      used: $.total_usage
+      currency: USD

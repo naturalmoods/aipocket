@@ -1,0 +1,17 @@
+id: groq
+name: Groq
+status: no-api
+console: https://console.groq.com/settings/billing
+docs: https://console.groq.com/docs/billing-faqs
+notes: >-
+  Groq publishes no balance endpoint; the billing FAQ directs users to the
+  console. AIPocket verifies the key and reports whatever figure you choose to
+  track manually. If Groq ships a balance API, this file is the only change
+  needed.
+
+auth:
+  type: bearer
+  env: GROQ_API_KEY
+
+verify:
+  url: https://api.groq.com/openai/v1/models

@@ -1,0 +1,68 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# Pinned to commit SHAs for the reason given in release.yml; the comment records
+# which release each one is.
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          check-latest: true
+      - run: go vet ./...
+      - run: go test -race ./...
+
+  # Every manifest is validated by the test suite, so a bad provider YAML fails
+  # the build rather than a user's morning.
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with: {go-version: stable}
+      - name: cross-compile
+        run: |
+          for t in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 \
+                   windows/amd64 windows/arm64 freebsd/amd64; do
+            GOOS=${t%/*} GOARCH=${t#*/} CGO_ENABLED=0 \
+              go build -o /dev/null ./cmd/aipocket || exit 1
+            echo "ok $t"
+          done
+
+  # "One dependency" is a stated security property of this tool, so it is a
+  # checked one. This job used to print a number and pass regardless — a gate
+  # that reports rather than gates is worse than none, because the green tick
+  # says the property held.
+  deps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with: {go-version: stable}
+      - name: no new module without review
+        run: |
+          go list -deps -f '{{if and .Module (not .Standard)}}{{.Module.Path}}{{end}}' ./... \
+            | sort -u > /tmp/modules.txt
+          echo "modules linked into the binary:"
+          cat /tmp/modules.txt
+          # A diff, not a count: a count passes when one dependency is swapped
+          # for another. Adding a line here is the review.
+          diff -u .github/allowed-modules.txt /tmp/modules.txt
+      - run: go mod tidy -diff

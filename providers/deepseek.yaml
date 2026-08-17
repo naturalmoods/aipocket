@@ -1,0 +1,21 @@
+id: deepseek
+name: DeepSeek
+status: official
+console: https://platform.deepseek.com/usage
+docs: https://api-docs.deepseek.com/api/get-user-balance
+
+auth:
+  type: bearer
+  env: DEEPSEEK_API_KEY
+
+balance:
+  url: https://api.deepseek.com/user/balance
+  # DeepSeek keeps separate wallets per currency. USD is tried first; a CNY-only
+  # account still reports correctly, and the CNY figure is kept out of the USD
+  # total rather than converted at a rate AIPocket has no business guessing.
+  available: $.is_available
+  amounts:
+    - path: $.balance_infos[?currency=USD].total_balance
+      currency: USD
+    - path: $.balance_infos[?currency=CNY].total_balance
+      currency: CNY

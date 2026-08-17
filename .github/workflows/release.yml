@@ -1,0 +1,95 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+# Nothing is granted here. Splitting the permissions per job is the point: the
+# test job runs repository code — the test suite, whatever a module's build
+# constraints pull in — and there is no reason for that code to hold a token that
+# can write releases or mint an OIDC identity. It used to, because the tests ran
+# inside the release job.
+permissions: {}
+
+# Actions are pinned to commit SHAs, not tags. A tag is a moving pointer the
+# upstream owner can repoint at any time, so `@v7` is "whatever that account
+# publishes next" — and these actions run in a job holding a token that can
+# publish releases in this repository's name. The trailing comment records which
+# release each SHA is, because a SHA alone is unreviewable.
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          # Nothing here needs to talk back to GitHub, so the token is not left
+          # in .git/config where any test, tool or hook could pick it up.
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with: {go-version-file: go.mod}
+      - run: go vet ./...
+      - run: go test -race ./...
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    # Two protections this file cannot express, and which the release procedure
+    # in SECURITY.md is responsible for: a repository ruleset restricting who may
+    # push a v* tag, and a required reviewer on this environment. Without them,
+    # anyone who can push a tag can start a job that holds contents:write and an
+    # OIDC identity attesting that its output is an official build.
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # The release pins Go to the version in go.mod, while ci.yml deliberately
+      # floats on `stable`. The toolchain version changes the compiler output, so
+      # a release built with "whatever was current that week" cannot be
+      # reproduced later — and the release notes claim it can be. CI floating
+      # still catches breakage from new Go versions; bumping the release
+      # compiler is then an explicit, reviewable go.mod change.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with: {go-version-file: go.mod}
+
+      # Build and upload, but as a *draft*: nothing is downloadable yet. See the
+      # publish step for why the order matters.
+      - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          version: v2.17.1
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Build provenance lets anyone verify a downloaded binary was produced by
+      # this workflow from this commit — the relevant guarantee for a tool that
+      # reads your API keys. subject-path is a newline-separated list of globs;
+      # the comma-separated form it used to hold is not a documented multi-pattern
+      # syntax, so it was attesting one pattern taken literally, or nothing.
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt
+
+      # Publishing last is what makes the attestation worth anything. Published
+      # first, the archives are downloadable — and `gh attestation verify` fails,
+      # indistinguishably from a tampered file — for as long as the attestation
+      # step takes, which is also exactly the window in which a failing
+      # attestation goes unnoticed because the release already looks finished.
+      - name: publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Via the environment, not interpolated into the script: a tag name is
+          # attacker-chosen text and `run:` is a shell.
+          TAG: ${{ github.ref_name }}
+        run: gh release edit "$TAG" --draft=false

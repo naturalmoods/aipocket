@@ -1,0 +1,2 @@
+github.com/naturalmoods/aipocket
+gopkg.in/yaml.v3

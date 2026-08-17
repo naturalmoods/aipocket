@@ -1,0 +1,65 @@
+version: 2
+
+before:
+  # Neither hook is a test run any more. The suite runs in release.yml's separate
+  # read-only job, before this one starts, because a test run inside the release
+  # job executes repository code alongside a token that can publish releases.
+  # `go mod tidy` is gone for a second reason: it rewrites go.mod and go.sum in
+  # the middle of a release, so what was built could differ from what was
+  # reviewed. `go mod verify` checks the same modules without touching anything,
+  # and ci.yml enforces `go mod tidy -diff` on every commit.
+  hooks: [go mod verify]
+
+builds:
+  - main: ./cmd/aipocket
+    binary: aipocket
+    env: [CGO_ENABLED=0]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X github.com/naturalmoods/aipocket/internal/fetch.Version={{.Version}}
+    goos: [linux, darwin, windows, freebsd]
+    goarch: [amd64, arm64]
+    ignore:
+      - {goos: freebsd, goarch: arm64}
+    # Reproducible builds: without this the binary embeds its build time, so the
+    # same tag would produce different bytes on every run and the checksums
+    # could not be independently reproduced. -trimpath above removes the other
+    # source of non-determinism, the local module path.
+    mod_timestamp: '{{ .CommitTimestamp }}'
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - {goos: windows, formats: [zip]}
+    files: [README.md, LICENSE, SECURITY.md, config.example.yaml]
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: '{{ incpatch .Version }}-next'
+
+release:
+  # Uploaded as a draft, published by the workflow only after the build
+  # provenance attestation exists. Published first, every download in that window
+  # fails `gh attestation verify` in exactly the way a tampered file does.
+  draft: true
+  # An -rc or -beta tag must not become the "latest" release: the release badge
+  # and a bare `gh release download` would then hand a release candidate to
+  # someone who asked for the stable version.
+  prerelease: auto
+  footer: |
+    ---
+    Every archive above carries a build provenance attestation. Before trusting a
+    tool with a billing credential, verify that it was built by this repository's
+    release workflow from this tag:
+
+        gh attestation verify <file> -R naturalmoods/aipocket
+
+    Checksums are in `checksums.txt`. Builds are reproducible: the same tag,
+    rebuilt with the Go version pinned in `go.mod`, produces the same bytes.
+
+changelog:
+  use: github
+  filters:
+    exclude: ['^docs:', '^test:', '^chore:']
