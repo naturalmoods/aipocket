@@ -23,6 +23,17 @@ func JSON(w io.Writer, rep core.Report) error {
 	return enc.Encode(rep)
 }
 
+// Options controls the human-readable view. It is a struct rather than two
+// trailing bools because `Table(w, rep, true, false)` at a call site says
+// nothing about which is which.
+type Options struct {
+	Color bool
+	// All prints a row for every provider. By default the providers with no
+	// credential are collapsed into one line: at twenty providers they are most
+	// of the table and none of the information.
+	All bool
+}
+
 // Table writes the human-readable view.
 //
 // This is the terminal boundary, so every cell is sanitised here regardless of
@@ -32,9 +43,36 @@ func JSON(w io.Writer, rep core.Report) error {
 // only thing left to do about it is print it. The colour codes below are written
 // after sanitising, deliberately: they are the tool's own, and the tool is
 // allowed to colour its output.
-func Table(w io.Writer, rep core.Report, color bool) {
-	rows := make([][4]string, 0, len(rep.Results))
+func Table(w io.Writer, rep core.Report, opt Options) {
+	// Collapsing keeps the table readable as the registry grows; naming the
+	// collapsed ids is what keeps it honest. A row that simply vanished would
+	// make a misspelled variable name invisible — the user believes a provider
+	// is being checked, sees no row for it, and concludes it is fine.
+	shown := make([]core.Result, 0, len(rep.Results))
+	var collapsed []string
 	for _, r := range rep.Results {
+		if !opt.All && r.State == core.StateUnconfigured {
+			collapsed = append(collapsed, safetext.Sanitize(r.ID))
+			continue
+		}
+		shown = append(shown, r)
+	}
+
+	// Nothing configured at all is the first run, and after collapsing there is
+	// no table left to print — only a header, a rule and a total of nothing.
+	// Which read as a failure report, for something that has not failed: an
+	// absent credential is StateUnconfigured, deliberately not an error, and the
+	// exit code stays 0.
+	if len(shown) == 0 && len(collapsed) > 0 {
+		fmt.Fprint(w, "\n  No credentials found. AIPocket reads each provider's conventional\n"+
+			"  environment variable; run 'aipocket providers' to see them. To read a key\n"+
+			"  from a secret manager instead, see 'aipocket config path'.\n\n"+
+			"  'aipocket --all' prints the full table anyway.\n\n")
+		return
+	}
+
+	rows := make([][4]string, 0, len(shown))
+	for _, r := range shown {
 		rows = append(rows, [4]string{
 			safetext.Sanitize(r.Name), amount(r), string(r.State), safetext.Sanitize(caveat(r)),
 		})
@@ -54,8 +92,8 @@ func Table(w io.Writer, rep core.Report, color bool) {
 
 	for i, r := range rows {
 		state := r[2]
-		if color {
-			state = colorize(rep.Results[i].State, padR(state, w2))
+		if opt.Color {
+			state = colorize(shown[i].State, padR(state, w2))
 		} else {
 			state = padR(state, w2)
 		}
@@ -70,8 +108,19 @@ func Table(w io.Writer, rep core.Report, color bool) {
 	// Three totals, never one. Documented, inferred and hand-maintained figures
 	// are different kinds of claim; summing them into a single number would
 	// present a guess with the same authority as a fact.
-	fmt.Fprintf(w, "  %s  %s   documented fields only\n",
-		padR("verified", w0), padL(fmt.Sprintf("%.2f USD", rep.TotalVerified), w1))
+	//
+	// A verified total of 0.00 has two entirely unrelated causes: an account a
+	// provider documents as empty, and nothing having been read at all. Printing
+	// the same line for both is the tool being confidently wrong in the one place
+	// people actually read, which is the objection it already applies to a schema
+	// mismatch rendering as a green 0.00.
+	if verifiedReadings(rep.Results) == 0 {
+		fmt.Fprintf(w, "  %s  %s   no provider reported a documented balance\n",
+			padR("verified", w0), padL("—", w1))
+	} else {
+		fmt.Fprintf(w, "  %s  %s   documented fields only\n",
+			padR("verified", w0), padL(fmt.Sprintf("%.2f USD", rep.TotalVerified), w1))
+	}
 	if rep.TotalInferred != 0 {
 		fmt.Fprintf(w, "  %s  %s   read from undocumented response shapes\n",
 			padR("inferred", w0), padL(fmt.Sprintf("%.2f USD", rep.TotalInferred), w1))
@@ -83,7 +132,30 @@ func Table(w io.Writer, rep core.Report, color bool) {
 	if len(rep.Excluded) > 0 {
 		fmt.Fprintf(w, "\n  outside the verified total: %s\n", strings.Join(rep.Excluded, ", "))
 	}
+	if len(collapsed) > 0 {
+		subject := fmt.Sprintf("%d providers have", len(collapsed))
+		if len(collapsed) == 1 {
+			subject = "1 provider has"
+		}
+		fmt.Fprintf(w, "\n  %s no credential configured: %s  (--all)\n",
+			subject, strings.Join(collapsed, ", "))
+	}
 	fmt.Fprintln(w)
+}
+
+// verifiedReadings counts the results that contributed to Report.TotalVerified.
+// The condition mirrors the switch in core.Checker.Run — state ok, confidence
+// official, currency USD — and has to keep mirroring it: a count that drifts
+// from the sum would put the wrong label on the figure beside it.
+func verifiedReadings(rs []core.Result) int {
+	n := 0
+	for _, r := range rs {
+		if r.Balance != nil && r.State == core.StateOK &&
+			r.Confidence == manifest.StatusOfficial && r.Currency == "USD" {
+			n++
+		}
+	}
+	return n
 }
 
 func amount(r core.Result) string {

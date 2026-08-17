@@ -28,7 +28,7 @@ func TestNoCellCanCarryTerminalEscapes(t *testing.T) {
 	}
 
 	var b strings.Builder
-	Table(&b, rep, false)
+	Table(&b, rep, Options{})
 	out := b.String()
 	for _, bad := range []string{"\x1b", "\x07"} {
 		if strings.Contains(out, bad) {
@@ -45,7 +45,7 @@ func TestAProviderBodyCannotForgeAnExtraRow(t *testing.T) {
 		Table(&b, core.Report{Results: []core.Result{{
 			ID: "acme", Name: "Acme", State: core.StateError,
 			Confidence: manifest.StatusOfficial, ProviderMessage: providerMessage,
-		}}}, false)
+		}}}, Options{})
 		return b.String()
 	}
 	plain := strings.Count(row("nope"), "\n")
@@ -68,7 +68,7 @@ func TestTheToolsOwnColourStillWorks(t *testing.T) {
 		TotalVerified: 37.65,
 	}
 	var b strings.Builder
-	Table(&b, rep, true)
+	Table(&b, rep, Options{Color: true})
 	if !strings.Contains(b.String(), "\033[32m") {
 		t.Errorf("an ok row should be green:\n%q", b.String())
 	}
@@ -87,8 +87,127 @@ func TestProviderMessageIsAttributedToTheProvider(t *testing.T) {
 		}},
 	}
 	var b strings.Builder
-	Table(&b, rep, false)
+	Table(&b, rep, Options{})
 	if !strings.Contains(b.String(), "provider said:") {
 		t.Fatalf("the provider's message is unattributed:\n%s", b.String())
+	}
+}
+
+// `0.00 USD` is a claim about your money. "Nothing was read" is a different
+// claim, and when no documented field was reached it is the true one. The tool
+// refuses a confident zero everywhere else — a response matching no amount is an
+// error, never a green 0.00 — and the totals block was the one place that did
+// not.
+func TestATotalOfNothingIsNotAZeroBalance(t *testing.T) {
+	verifiedLine := func(rep core.Report) string {
+		var b strings.Builder
+		Table(&b, rep, Options{})
+		for _, l := range strings.Split(b.String(), "\n") {
+			if trimmed := strings.TrimSpace(l); strings.HasPrefix(trimmed, "verified") {
+				return trimmed
+			}
+		}
+		return ""
+	}
+
+	nothingRead := core.Report{Results: []core.Result{{ID: "acme", Name: "Acme",
+		State: core.StateError, Confidence: manifest.StatusOfficial,
+		Error: "HTTP 500 Internal Server Error"}}}
+	documentedZero := core.Report{Results: []core.Result{{ID: "acme", Name: "Acme",
+		State: core.StateOK, Balance: balance(0), Currency: "USD",
+		Confidence: manifest.StatusOfficial}}}
+
+	if got := verifiedLine(nothingRead); strings.Contains(got, "0.00") {
+		t.Errorf("nothing was read, yet the total states a figure: %q", got)
+	}
+	if got := verifiedLine(documentedZero); !strings.Contains(got, "0.00 USD") {
+		t.Errorf("an account documented as empty must still print as a figure: %q", got)
+	}
+	if verifiedLine(nothingRead) == verifiedLine(documentedZero) {
+		t.Fatalf("a run that read nothing renders like an empty account: %q",
+			verifiedLine(nothingRead))
+	}
+}
+
+// A first run, before any key is set, printed one row per provider saying a
+// variable is not set and a 0.00 total underneath: a failure report for
+// something that has not failed. A missing credential is deliberately not an
+// error, and the output should say what to do rather than look broken.
+func TestNoCredentialsAtAllExplainsItselfInsteadOfPrintingAnEmptyTable(t *testing.T) {
+	rep := core.Report{Results: []core.Result{
+		{ID: "acme", Name: "Acme", State: core.StateUnconfigured,
+			Confidence: manifest.StatusOfficial, Error: "$ACME_API_KEY is not set"},
+		{ID: "beta", Name: "Beta", State: core.StateUnconfigured,
+			Confidence: manifest.StatusOfficial, Error: "$BETA_API_KEY is not set"},
+	}}
+
+	var b strings.Builder
+	Table(&b, rep, Options{})
+	out := b.String()
+	if strings.Contains(out, "PROVIDER") {
+		t.Errorf("an empty table was printed instead of an explanation:\n%s", out)
+	}
+	if !strings.Contains(out, "aipocket providers") {
+		t.Errorf("the explanation has to say where to look:\n%s", out)
+	}
+
+	// --all is how someone asks to see every row and every variable name.
+	var all strings.Builder
+	Table(&all, rep, Options{All: true})
+	if !strings.Contains(all.String(), "PROVIDER") {
+		t.Errorf("--all must still print the table:\n%s", all.String())
+	}
+}
+
+// Twenty providers and four configured keys must not produce sixteen rows saying
+// a variable is not set. The collapsed ids are still named, though: a row that
+// silently vanished would make a misspelled variable name look like a provider
+// that is fine.
+func TestUnconfiguredProvidersCollapseButAreStillNamed(t *testing.T) {
+	unconfigured := func(id, name string) core.Result {
+		return core.Result{ID: id, Name: name, State: core.StateUnconfigured,
+			Confidence: manifest.StatusOfficial,
+			Error:      "$" + strings.ToUpper(id) + "_API_KEY is not set"}
+	}
+	rep := core.Report{
+		Results: []core.Result{
+			{ID: "acme", Name: "Acme", State: core.StateOK, Balance: balance(37.65),
+				Currency: "USD", Confidence: manifest.StatusOfficial},
+			unconfigured("beta", "Beta"),
+			unconfigured("gamma", "Gamma"),
+			unconfigured("delta", "Delta"),
+		},
+		TotalVerified: 37.65,
+	}
+
+	var b strings.Builder
+	Table(&b, rep, Options{})
+	out := b.String()
+
+	if !strings.Contains(out, "Acme") {
+		t.Fatalf("the configured provider lost its row:\n%s", out)
+	}
+	// A provider's name only ever appears in a row and its id only in the
+	// collapsed line, so case tells the two apart.
+	for _, name := range []string{"Beta", "Gamma", "Delta"} {
+		if strings.Contains(out, name) {
+			t.Errorf("%s still has a row of its own:\n%s", name, out)
+		}
+	}
+	for _, id := range []string{"beta", "gamma", "delta"} {
+		if !strings.Contains(out, id) {
+			t.Errorf("collapsed provider %q is named nowhere:\n%s", id, out)
+		}
+	}
+	if !strings.Contains(out, "3 providers have no credential configured") {
+		t.Errorf("the collapsed line does not say how many:\n%s", out)
+	}
+
+	var all strings.Builder
+	Table(&all, rep, Options{All: true})
+	for _, name := range []string{"Acme", "Beta", "Gamma", "Delta"} {
+		if !strings.Contains(all.String(), name) {
+			t.Errorf("--all must print every row; %s is missing:\n%s", name, all.String())
+		}
 	}
 }

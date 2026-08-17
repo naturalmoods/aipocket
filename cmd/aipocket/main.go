@@ -51,6 +51,8 @@ usage:
 
 flags:
   --json            machine-readable output
+  --all             print a row for every provider, including the ones with
+                    no credential configured (they are collapsed by default)
   --no-color        disable colour (also honours NO_COLOR)
   --timeout DUR     per-request timeout (default 20s)
   --config PATH     config file (default: see 'aipocket config path')
@@ -80,6 +82,7 @@ func run() int {
 
 	var (
 		asJSON     = fs.Bool("json", false, "machine-readable output")
+		all        = fs.Bool("all", false, "print a row for every provider")
 		noColor    = fs.Bool("no-color", false, "disable colour output")
 		timeout    = fs.Duration("timeout", 20*time.Second, "per-request timeout")
 		configPath = fs.String("config", "", "config file path")
@@ -171,7 +174,8 @@ func run() int {
 		return 0
 
 	case "check":
-		return check(ctx, reg, cfg, args, *timeout, *asJSON, useColor(*noColor))
+		return check(ctx, reg, cfg, args, *timeout, *asJSON,
+			render.Options{Color: useColor(*noColor), All: *all})
 	}
 
 	fs.Usage()
@@ -211,7 +215,7 @@ func isCommand(s string) bool {
 }
 
 func check(ctx context.Context, reg *manifest.Registry, cfg *core.Config,
-	ids []string, timeout time.Duration, asJSON, color bool) int {
+	ids []string, timeout time.Duration, asJSON bool, opt render.Options) int {
 
 	checker := core.NewChecker(reg, cfg, timeout)
 	providers, err := checker.Selected(ids)
@@ -227,7 +231,7 @@ func check(ctx context.Context, reg *manifest.Registry, cfg *core.Config,
 			return 1
 		}
 	} else {
-		render.Table(os.Stdout, rep, color)
+		render.Table(os.Stdout, rep, opt)
 	}
 
 	for _, r := range rep.Results {
