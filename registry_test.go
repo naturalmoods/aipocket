@@ -1,6 +1,7 @@
 package aipocket_test
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -56,6 +57,33 @@ func TestEveryProviderIsHonestAboutItself(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// checkedOn is the form a `no-api` note has to carry.
+var checkedOn = regexp.MustCompile(`checked \d{4}-\d{2}-\d{2}`)
+
+// `status: no-api` is the only claim in the registry that no test can verify:
+// it says something about a provider's documentation rather than about this
+// code. It is also the only one that rots on its own — a provider ships a
+// credits API, this file keeps saying there is none, and nothing anywhere
+// notices. The date does not make the claim true; it makes it auditable. A
+// reader can see when it was last looked at and decide whether that is recent
+// enough to trust, which is the same reason `undocumented` has to say what was
+// guessed.
+func TestNoAPIClaimsCarryTheDateTheyWereChecked(t *testing.T) {
+	reg, err := aipocket.Registry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range reg.All() {
+		if p.Status != manifest.StatusNoAPI {
+			continue
+		}
+		if !checkedOn.MatchString(p.Notes) {
+			t.Errorf("%s: notes must record when the absence of a balance API was "+
+				"last confirmed, in the form `checked YYYY-MM-DD`", p.ID)
+		}
 	}
 }
 

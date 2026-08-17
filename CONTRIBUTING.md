@@ -49,7 +49,12 @@ This is the part that matters most, and the tests enforce it.
   Requires `notes:` saying what was guessed. The reading is labelled
   "inferred field" in every output format.
 - `no-api` — no balance endpoint. Use a `verify:` endpoint so the key can still
-  be checked. Must not define `balance:`. Requires `notes:`.
+  be checked. Must not define `balance:`. Requires `notes:`, and the note has to
+  record when you looked: `checked 2026-08-17: the billing FAQ documents no
+  balance endpoint and directs users to the console`. A test enforces the date.
+  This is the one claim in the registry that no test can verify — it is about a
+  provider's documentation, not about this code — and the only one that rots on
+  its own, so the date is what lets a reader judge whether it is still true.
 
 Marking an inferred reading as `official` is the one change that will get a pull
 request rejected outright. It is not cosmetic: `official` is the only status
