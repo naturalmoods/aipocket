@@ -182,6 +182,32 @@ balance:
 host and print a manifest block ready to paste. See
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## Compatibility
+
+From `v1.0.0`, four things are contracts and will not break within the major
+version. New fields and new providers may be added; nothing listed here will be
+renamed, removed, or change meaning.
+
+- **The config file.** A config that works today keeps working.
+- **`--json`.** Field names and their meaning are stable, including the split
+  between `total_verified_usd`, `total_inferred_usd` and `total_manual_usd`.
+- **The MCP tools.** `get_balances` and `list_providers`, their input schemas,
+  and the `confidence` value travelling with every figure.
+- **Exit codes.** `0` success, `1` at least one provider errored, `2` usage
+  error — scripts depend on these.
+
+Three things are deliberately *not* contracts:
+
+- **The table.** It is for humans and will be reformatted whenever that makes it
+  clearer. Parse `--json`.
+- **Which providers exist, and what each one can report.** Providers are data. A
+  provider that ships a balance API gains one; a provider that withdraws one loses
+  it, and its `status` changes accordingly. That is the provider's doing, not an
+  API break — and it is the reason `confidence` is in the output rather than in
+  the documentation.
+- **Anything a provider says.** `provider_message` carries a remote service's own
+  words. Its presence and shape are stable; its contents are theirs.
+
 ## Dependencies
 
 One: `gopkg.in/yaml.v3`. The JSONPath subset, the HTTP layer and the MCP server
