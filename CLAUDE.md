@@ -14,6 +14,19 @@ package names, binary, command examples, error prefixes, config directory, MCP s
 User-Agent. Keep that split when adding code or docs. The checkout directory happens to be
 `AIPocket`, which is irrelevant to Go; the module path is authoritative and lowercase.
 
+## Open work
+
+Planned work lives in GitHub issues under the **v1.0.0** milestone:
+<https://github.com/naturalmoods/aipocket/milestone/1>. Each one is written to stand on
+its own — which file, which invariant, what the test has to prove — because the reasoning
+behind a change is exactly what a diff does not preserve. #5 and #6 are provider
+checklists rather than single tasks; the rest are roughly one sitting each. Each issue names
+the test that closes it — see **Testing conventions**, which is the gate, not a preference.
+
+**Non-goals** below is the other half of that record: what was decided against, and why.
+A plausible-sounding feature that appears in neither list is worth asking about before
+building it.
+
 ## Commands
 
 ```bash
@@ -155,6 +168,35 @@ becomes another host that receives the key, and the closing paragraph says plain
 **Strict YAML both ways.** `dec.KnownFields(true)` on manifests and on user config: a typo
 must fail, not silently no-op.
 
+## Non-goals
+
+Decisions, not gaps. Each of these is an obvious, helpful-sounding addition that would
+change what the tool is, so implementing one needs a conversation first rather than a pull
+request.
+
+- **No currency conversion.** A non-USD balance is reported and excluded from the verified
+  total. There is no exchange rate in the binary, and one fetched at runtime would be a
+  second network dependency deciding what a number means.
+- **No spend history, usage tracking, cache or database.** AIPocket answers "how much is
+  left, right now". Keeping state is what turns an auditable static binary into a service.
+- **No runway estimate** ("enough for 12 days"). It needs a spend rate, which needs
+  history, which is the previous item.
+- **No TUI, no web UI, no alerts.** The table is the interface; `--json` is the
+  integration point.
+- **No keyring library.** `command:` delegates to whatever secret manager the machine
+  already has, and works where a keyring dependency does not — WSL has no D-Bus session
+  and no keyring daemon.
+- **AIPocket does not write your config.** No `aipocket set groq 25.00`. Rewriting the
+  file would lose its comments, and its whole purpose is to hold credential instructions.
+- **GET only.** `fetch` performs one operation. A provider reachable only by POST is not
+  added; that restriction is what makes `aipocket audit`'s promise checkable.
+- **No remote registry.** An invariant above, repeated here because "just fetch the
+  provider list" is the most natural feature request this design has to refuse.
+- **Non-money quotas** (a character allowance, a monthly request cap) need no code:
+  `currency:` is a free string, so `currency: CHARS` would already be reported and already
+  kept out of the USD total. Whether a tool about money should carry them is a product
+  question, and the answer for 1.0 is no.
+
 ## Adding or changing a provider
 
 Write `providers/<id>.yaml` and run `go test ./...`. `aipocket probe <id>` searches
@@ -211,6 +253,17 @@ worse than none, because the green tick claims the property held.) Adding a depe
 design decision, not a convenience.
 
 ## Testing conventions
+
+**An issue is finished when a test proves it, not when the code works.** The test lands in
+the same commit as the change, and it has to fail before the change and pass after — a test
+written against already-passing code asserts nothing about the work it was meant to cover,
+which is the same objection as the dependency gate that only reported and always passed.
+Every issue in the milestone names the test it expects; if implementing it turns out to need
+a different one, edit the issue rather than quietly dropping the test.
+
+Two kinds of issue have no behaviour to assert — a documentation refresh and the release tag
+itself. Those close with a comment recording what was checked by hand and how, so a missing
+test is always a decision someone wrote down, never a silence.
 
 Table-free, behaviour-named tests (`TestSchemaDriftIsAnErrorNotZero`,
 `TestSecretStraddlingTheTruncationBoundaryIsRedacted`). Network tests use
