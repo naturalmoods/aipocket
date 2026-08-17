@@ -95,6 +95,40 @@ func TestBareStringIsNotTreatedAsAnEnvName(t *testing.T) {
 	}
 }
 
+// The accepted file: forms must be the same set on every platform. A config file
+// is portable text — edited on one machine, read on another — so asking
+// filepath.IsAbs, which says no to /etc/keys/foo on Windows and no to
+// C:\keys\foo on Unix, gives an answer that depends on where the check runs.
+// This test is the pin: it asserts the whole set unconditionally, with no
+// runtime.GOOS anywhere, so a platform-dependent answer fails somewhere in CI.
+func TestFilePathFormsAreTheSameOnEveryPlatform(t *testing.T) {
+	for _, good := range []string{
+		"/etc/keys/acme",
+		"~/.secrets/acme",
+		"./acme.key",
+		`.\acme.key`,
+		`C:\Users\me\acme.key`,
+		"C:/Users/me/acme.key",
+		`c:\users\me\acme.key`,
+		`\\fileserver\secrets\acme`,
+	} {
+		if _, err := Parse("file:" + good); err != nil {
+			t.Errorf("Parse(file:%s) rejected a path: %v", good, err)
+		}
+	}
+	for _, bad := range []string{
+		"sk-live-0123456789abcdef",
+		"acme.key",       // bare relative: indistinguishable from a pasted value
+		"C:acme.key",     // drive-relative, no separator
+		"1:/not/a/drive", // not a letter
+		"",
+	} {
+		if src, err := Parse("file:" + bad); err == nil {
+			t.Errorf("Parse(file:%s) was accepted as %+v", bad, src)
+		}
+	}
+}
+
 // file: values are printed by `aipocket audit` too, so the same rule applies:
 // something that is not shaped like a path is not accepted as one.
 func TestBareValueIsNotTreatedAsAFilePath(t *testing.T) {

@@ -177,17 +177,40 @@ func Parse(spec string) (Source, error) {
 }
 
 // plausiblePath keeps a bare secret out of a file: spec. A credential file is
-// named by an absolute path in every real config; requiring one costs nothing
-// and means `file:sk-live-…` cannot become a printed "path".
+// named by a rooted path in every real config; requiring one costs nothing and
+// means `file:sk-live-…` cannot become a printed "path".
+//
+// The forms are recognised by shape, on every platform, rather than by asking
+// filepath.IsAbs. IsAbs answers a different question — "is this absolute *here*"
+// — and answers it no for `/etc/keys/foo` on Windows, which wants a drive
+// letter, and no for `C:\keys\foo` on Unix. A config file is portable text that
+// gets edited on one machine and read on another, so whether a value is shaped
+// like a path must not depend on where the check runs. (Windows CI caught this;
+// the Linux run was perfectly happy.)
 func plausiblePath(v string) bool {
 	switch {
 	case v == "":
 		return false
-	case strings.HasPrefix(v, "~"), strings.HasPrefix(v, "./"), strings.HasPrefix(v, ".\\"):
-		return true
+	case strings.HasPrefix(v, "~"):
+		return true // ~/… , expanded later by expandHome
+	case strings.HasPrefix(v, "/"), strings.HasPrefix(v, `\`):
+		return true // rooted, or a UNC share
+	case strings.HasPrefix(v, "./"), strings.HasPrefix(v, `.\`):
+		return true // explicitly relative
 	default:
-		return filepath.IsAbs(v)
+		return hasDriveLetter(v)
 	}
+}
+
+// hasDriveLetter reports whether v begins with a Windows drive prefix such as
+// `C:\` or `c:/`. Note that Parse cuts the scheme at the *first* colon, so the
+// one in a drive letter survives into the value.
+func hasDriveLetter(v string) bool {
+	if len(v) < 3 || v[1] != ':' || (v[2] != '\\' && v[2] != '/') {
+		return false
+	}
+	c := v[0] | 0x20 // fold case; only ASCII letters are drive letters
+	return c >= 'a' && c <= 'z'
 }
 
 // Describe renders the source for display. It is safe to print: for env and
