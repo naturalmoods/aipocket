@@ -37,11 +37,13 @@ providers:
     # spend, which this tool has no way of knowing.
     as_of: 2026-08-01
 
-  # An endpoint AIPocket does not ship yet: point at it now, and please send it
-  # back as a manifest pull request. `aipocket probe entrim` looks for one.
+  # If you find a balance endpoint AIPocket does not ship yet, point at it here
+  # and please send it back as a manifest pull request. `aipocket probe <id>`
+  # looks for one. (Entrim is listed as an example of the key: form only — it
+  # publishes no balance endpoint, which is recorded in its manifest.)
   entrim:
     key: env:ENTRIM_API_KEY
-    # balance_url: https://api.entrim.ai/v1/credits
+    # balance_url: https://api.example.com/v1/credits
 
   # Switch a provider off entirely. Nothing contacts it after this — not even an
   # explicit `aipocket anthropic` or `aipocket probe anthropic`.

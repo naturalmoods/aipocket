@@ -1,23 +1,28 @@
 id: entrim
 name: Entrim.ai
-status: undocumented
+status: no-api
 console: https://entrim.ai/
+docs: https://docs.entrim.ai/
 notes: >-
-  Entrim exposes an OpenAI-compatible API but publishes no balance endpoint.
-  Run `aipocket probe entrim` to search the usual paths; it prints a ready-made
-  manifest block to contribute back if it finds one.
+  checked 2026-08-18: Entrim exposes no balance endpoint. This manifest used to
+  guess one at /v1/credits and mark the reading undocumented; on a live account
+  that URL answers 404, so the guess was wrong and is gone.
+
+  The absence was then established without spending a credential, which is worth
+  recording because it is cheaper and safer than probing: on api.entrim.ai a route
+  that does not exist answers 404 while a route that exists answers 401, and all
+  fourteen conventional balance paths — /v1/credits, /v1/balance, /v1/quota,
+  /v1/account, /v1/usage, /v1/user/balance, /user/balance, /v1/billing/balance,
+  /v1/me, /v1/users/me/balance, /v1/user/info, /v1/account/billing, /v1/key,
+  /v1/subscription — answered 404. /v1/models answered 401, which is what makes it
+  a key check rather than a liveness check.
+
+  Their documentation site carries no API reference and no billing page; its only
+  substantive pages cover coding plans and editor setup.
 
 auth:
   type: bearer
   env: ENTRIM_API_KEY
 
-balance:
-  url: https://api.entrim.ai/v1/credits
-  amounts:
-    - path: $.credits_remaining
-      currency: USD
-    - path: $.balance
-      currency: USD
-    - total: $.total_credits
-      used: $.total_usage
-      currency: USD
+verify:
+  url: https://api.entrim.ai/v1/models
