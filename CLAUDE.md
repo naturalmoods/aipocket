@@ -201,6 +201,12 @@ request.
   and no keyring daemon.
 - **AIPocket does not write your config.** No `aipocket set groq 25.00`. Rewriting the
   file would lose its comments, and its whole purpose is to hold credential instructions.
+  `aipocket config add` is the compatible half of that request: it asks which provider and
+  which credential *form*, validates the spec with `secret.Parse`, and prints a block to
+  paste — the same shape as `probe`'s closing manifest block. It never receives the key
+  (a command-line key is in the shell history and the process arguments before it is
+  anywhere else) and never touches the file. Both restrictions have tests in
+  `cmd/aipocket/configadd_test.go`.
 - **GET only.** `fetch` performs one operation. A provider reachable only by POST is not
   added; that restriction is what makes `aipocket audit`'s promise checkable.
 - **No remote registry.** An invariant above, repeated here because "just fetch the

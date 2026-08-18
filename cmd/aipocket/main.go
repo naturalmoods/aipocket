@@ -47,6 +47,8 @@ usage:
   aipocket probe <provider>           search for an undocumented balance endpoint
   aipocket mcp                        run as an MCP server on stdio
   aipocket config path                print the config file location
+  aipocket config add [provider]      print a config entry to paste, asking where
+                                      the key should be read from (writes nothing)
   aipocket version
 
 flags:
@@ -144,12 +146,15 @@ func run() int {
 		return 0
 
 	case "config":
-		if len(args) == 0 || args[0] != "path" {
-			fmt.Fprint(os.Stderr, "usage: aipocket config path\n")
-			return 2
+		switch {
+		case len(args) == 1 && args[0] == "path":
+			fmt.Println(path)
+			return 0
+		case len(args) >= 1 && args[0] == "add":
+			return configAdd(os.Stdin, os.Stdout, reg, cfg, path, args[1:])
 		}
-		fmt.Println(path)
-		return 0
+		fmt.Fprint(os.Stderr, "usage: aipocket config path | aipocket config add [provider]\n")
+		return 2
 
 	case "providers":
 		return listProviders(reg, cfg, *asJSON)
