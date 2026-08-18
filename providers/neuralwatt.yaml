@@ -15,8 +15,12 @@ notes: >-
   none of which resolved against a live account — one of them, `$.balance`, turned
   out to name an object, so the run reported a schema mismatch instead of a number,
   which is the behaviour that caught this. The real field is
-  balance.credits_remaining_usd, confirmed against a live response on 2026-08-18.
-  Its name states the currency.
+  balance.credits_remaining_usd, confirmed against a live response on 2026-08-18 —
+  and against the portal on the same day, which is the comparison CONTRIBUTING asks
+  for before an inferred reading is trusted. They agreed, with one wrinkle worth
+  knowing: the portal rounds to two decimals for display where the API returns
+  three, so a difference in the last decimal is the console rounding and not a
+  different field. Its name states the currency.
 
   One candidate only, deliberately. The same object carries total_credits_usd,
   credits_used_usd, legacy_credits_usd and new_credits_usd next to an
