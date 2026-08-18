@@ -213,6 +213,7 @@ func TestKnownProvidersPresent(t *testing.T) {
 		"openrouter", "deepseek", "groq", "neuralwatt", "entrim",
 		"openai", "anthropic", "gemini", "mistral", "xai", "together", "cerebras",
 		"moonshot", "siliconflow", "replicate", "deepinfra", "nebius", "fal", "novita",
+		"straitly",
 	} {
 		if _, ok := reg.Get(id); !ok {
 			t.Errorf("provider %q missing from registry", id)

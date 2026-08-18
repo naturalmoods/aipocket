@@ -63,9 +63,9 @@ should be: each becomes a visible error, never a green `0.00`.
 
 ## Providers
 
-Nineteen, and the honest summary of the state of LLM billing APIs is the
+Twenty, and the honest summary of the state of LLM billing APIs is the
 `confidence` column: **five** providers publish a balance endpoint you can trust,
-three answer one whose response shape had to be inferred, and eleven publish
+three answer one whose response shape had to be inferred, and twelve publish
 nothing at all — for those AIPocket checks the key and reports whatever figure you
 choose to keep.
 
@@ -88,6 +88,7 @@ choose to keep.
 | OpenRouter | `openrouter` | official | balance |
 | Replicate | `replicate` | no-api | key check only |
 | SiliconFlow | `siliconflow` | undocumented | balance (inferred) |
+| Straitly | `straitly` | no-api | key check only |
 | Together AI | `together` | no-api | key check only |
 | xAI | `xai` | no-api | key check only |
 

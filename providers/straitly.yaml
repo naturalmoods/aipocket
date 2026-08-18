@@ -1,0 +1,31 @@
+id: straitly
+name: Straitly
+status: no-api
+console: https://app.straitly.ai/console/keys
+docs: https://straitly.ai/docs/errors
+notes: >-
+  checked 2026-08-18: Straitly is prepaid — the documented error for an exhausted
+  account is 402 `insufficient_credits`, "Your prepaid balance is spent" — but no
+  endpoint returns the balance. The console's keys page shows the running total
+  beside the cap, which is what `console:` points at.
+
+  The key check deliberately does *not* use GET /v1/models: that endpoint answers
+  200 with no credential at all (verified), so verifying against it would report
+  "key valid" for a key that had been revoked. The activity export is documented as
+  a plain authenticated GET and answers 401 without a credential, which is what
+  makes it a key check rather than a liveness check. `since` is set far in the
+  future on purpose: the export is asked for no rows, because the only thing wanted
+  from it is the authentication result.
+
+  That export reports the amount *charged* per request, which is spend rather than
+  money left, and there is no documented total to subtract it from — so it cannot
+  be turned into a balance. Five conventional balance paths under
+  api.straitly.ai (/v1/credits, /v1/balance, /v1/me, /v1/account,
+  /v1/user/balance) answer 404 unauthenticated, where a real route answers 401.
+
+auth:
+  type: bearer
+  env: STRAITLY_API_KEY
+
+verify:
+  url: https://app.straitly.ai/api/activity/export?format=json&since=4000000000
