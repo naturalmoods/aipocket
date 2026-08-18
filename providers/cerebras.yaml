@@ -1,0 +1,16 @@
+id: cerebras
+name: Cerebras
+status: no-api
+console: https://cloud.cerebras.ai/
+docs: https://inference-docs.cerebras.ai/api-reference/models/list-models
+notes: >-
+  checked 2026-08-18: the Cerebras inference API documents no balance or credits
+  endpoint; trial and purchased credits are tracked in the cloud console. The
+  models list is the key check.
+
+auth:
+  type: bearer
+  env: CEREBRAS_API_KEY
+
+verify:
+  url: https://api.cerebras.ai/v1/models

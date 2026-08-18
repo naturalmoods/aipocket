@@ -306,6 +306,68 @@ func TestManualFigureStaysOutOfVerifiedTotal(t *testing.T) {
 	}
 }
 
+// Most of the registry is now no-api providers, so this branch carries most of
+// the table: there is no balance to read, and the only thing the tool can say is
+// whether the key works. A verify endpoint that refuses the key has to say so —
+// without inventing a balance, and without becoming an error that would put the
+// provider in the exit-code-1 bucket for something that is not AIPocket's
+// problem to report as a failure.
+func TestAFailedKeyCheckIsReportedWithoutClaimingABalance(t *testing.T) {
+	t.Setenv("ACME_KEY", "sk-test-abcdefghijklmnop")
+	c, done := harness(t, noAPI, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		fmt.Fprint(w, `{"error":"invalid api key"}`)
+	})
+	defer done()
+
+	r := runAll(t, c).Results[0]
+	if r.State != StateManual {
+		t.Fatalf("state = %s, want manual", r.State)
+	}
+	if r.Balance != nil {
+		t.Errorf("a failed key check must not produce a balance: %v", *r.Balance)
+	}
+	if !strings.Contains(r.Detail, "key check failed") {
+		t.Errorf("the failure is not reported: %q", r.Detail)
+	}
+	// The provider's own words stay in their own field on this path too.
+	if !strings.Contains(r.ProviderMessage, "invalid api key") {
+		t.Errorf("the provider's message was dropped: %q", r.ProviderMessage)
+	}
+	if strings.Contains(r.Detail, "invalid api key") {
+		t.Errorf("the provider's words were folded into the tool's own account: %q", r.Detail)
+	}
+}
+
+// The same failure with a figure the user maintains: the figure is theirs and
+// still shown, the failed key check is reported next to it, and neither swallows
+// the other.
+func TestAFailedKeyCheckStillShowsTheUsersOwnFigure(t *testing.T) {
+	t.Setenv("ACME_KEY", "sk-test-abcdefghijklmnop")
+	c, done := harness(t, noAPI, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	})
+	defer done()
+
+	v := 25.0
+	c.Config.Providers["acme"] = ProviderConfig{Manual: &v}
+
+	rep := runAll(t, c)
+	r := rep.Results[0]
+	if r.Balance == nil || *r.Balance != 25 {
+		t.Fatalf("the user's figure was lost: %+v", r.Balance)
+	}
+	if rep.TotalManual != 25 || rep.TotalVerified != 0 {
+		t.Errorf("totals = manual %v, verified %v", rep.TotalManual, rep.TotalVerified)
+	}
+	if !strings.Contains(r.Detail, "key check failed") {
+		t.Errorf("the key check failure is not reported: %q", r.Detail)
+	}
+	if !strings.Contains(r.Detail, "user-maintained") {
+		t.Errorf("the figure is not marked as the user's own: %q", r.Detail)
+	}
+}
+
 func TestDisabledProviderIsSkipped(t *testing.T) {
 	t.Setenv("ACME_KEY", "sk-test-abcdefghijklmnop")
 	c, done := harness(t, totalMinusUsed, func(w http.ResponseWriter, r *http.Request) {

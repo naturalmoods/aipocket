@@ -1,0 +1,17 @@
+id: mistral
+name: Mistral AI
+status: no-api
+console: https://console.mistral.ai/billing
+docs: https://docs.mistral.ai/admin/billing-usage/billing
+notes: >-
+  checked 2026-08-18: the public API at api.mistral.ai exposes no balance
+  endpoint; the credits section of the console is the documented place to look.
+  An admin interface does report credits, but it authenticates with a browser
+  session rather than an API key, so a key cannot read a balance at all.
+
+auth:
+  type: bearer
+  env: MISTRAL_API_KEY
+
+verify:
+  url: https://api.mistral.ai/v1/models

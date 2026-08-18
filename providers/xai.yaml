@@ -1,0 +1,18 @@
+id: xai
+name: xAI
+status: no-api
+console: https://console.x.ai
+docs: https://docs.x.ai/developers/rest-api-reference/inference/other
+notes: >-
+  checked 2026-08-18: xAI publishes no credit balance endpoint. Its separate
+  management API needs its own management key and documents nothing about billing
+  or credits. The key check uses GET /v1/api-key, which suits this better than a
+  models list: it reports whether the key is blocked or disabled, not only
+  whether it authenticates.
+
+auth:
+  type: bearer
+  env: XAI_API_KEY
+
+verify:
+  url: https://api.x.ai/v1/api-key
