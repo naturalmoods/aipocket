@@ -2,6 +2,7 @@ package aipocket_test
 
 import (
 	"encoding/json"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -164,6 +165,42 @@ func TestBalancePathsResolveTheProvidersDocumentedExample(t *testing.T) {
 			}
 			t.Error("no amount in the manifest matched the provider's own documented example")
 		})
+	}
+}
+
+// The README's provider table is the first thing anyone reads, and a list that
+// slowly stops matching the binary is the likeliest form of documentation rot in
+// this repo — nothing else in it can go stale by someone adding a YAML file. So
+// the table and the registry have to name the same set, and the check costs three
+// lines.
+func TestTheREADMEProviderTableMatchesTheRegistry(t *testing.T) {
+	readme, err := os.ReadFile("README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Rows look like: | Anthropic | `anthropic` | no-api | key check only |
+	rows := regexp.MustCompile("(?m)^\\| .* \\| `([a-z0-9-]+)` \\| ")
+	documented := map[string]bool{}
+	for _, m := range rows.FindAllStringSubmatch(string(readme), -1) {
+		documented[m[1]] = true
+	}
+	if len(documented) == 0 {
+		t.Fatal("no provider rows found in README.md: the table's shape changed, and " +
+			"this test is now checking nothing")
+	}
+
+	reg, err := aipocket.Registry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range reg.IDs() {
+		if !documented[id] {
+			t.Errorf("provider %q ships in the binary but is missing from the README table", id)
+		}
+		delete(documented, id)
+	}
+	for id := range documented {
+		t.Errorf("the README table names %q, which no longer exists in the registry", id)
 	}
 }
 

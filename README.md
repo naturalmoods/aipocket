@@ -7,20 +7,33 @@ A single static binary. No runtime, one dependency, and it never stores your API
 ```
 $ aipocket
 
-  PROVIDER      BALANCE  STATE   NOTE
-  ──────────  ─────────  ──────  ────────────────────────────────────────────
-  DeepSeek    18.42 USD  ok
-  Entrim.ai   24.10 USD  ok      inferred field
-  Groq        25.00 USD  manual  no balance API; key valid; user-maintained figure
-  Neuralwatt   3.75 USD  ok      inferred field
-  OpenRouter  37.65 USD  ok      topped up 50.00 / spent 12.35
-  ──────────  ─────────  ──────  ────────────────────────────────────────────
-  verified    56.07 USD   documented fields only
-  inferred    27.85 USD   read from undocumented response shapes
-  manual      25.00 USD   your own figures, unverifiable
+  PROVIDER               BALANCE  STATE   NOTE
+  ──────────────────  ──────────  ──────  ────────────────────────────────────────────
+  Anthropic                    —  manual  no balance API; key valid
+  DeepSeek             18.42 USD  ok
+  fal.ai               24.50 USD  ok
+  Groq                 25.00 USD  manual  no balance API; key valid; user-maintained figure (2026-08-01, 17 days ago)
+  Moonshot AI (Kimi)   49.59 USD  ok
+  OpenAI                       —  manual  no balance API; key valid
+  OpenRouter           37.65 USD  ok      topped up 50.00 / spent 12.35
+  SiliconFlow          12.80 USD  ok      inferred field
+  ──────────────────  ──────────  ──────  ────────────────────────────────────────────
+  verified            130.16 USD   documented fields only
+  inferred             12.80 USD   read from undocumented response shapes
+  manual               25.00 USD   your own figures, unverifiable
 
-  outside the verified total: entrim (inferred field), groq (user-maintained), neuralwatt (inferred field)
+  outside the verified total: siliconflow (inferred field), groq
+    (user-maintained)
+
+  11 providers have no credential configured: cerebras, deepinfra, entrim,
+    gemini, mistral, nebius, neuralwatt, novita, replicate, together, xai
+    (--all)
 ```
+
+The figures are illustrative; the layout is not — it is printed by the same
+renderer the binary uses. Providers with no credential configured collapse into
+that last line rather than filling the table with rows saying a variable is not
+set; `--all` brings them back.
 
 ## Why this exists
 
@@ -48,6 +61,39 @@ should be: each becomes a visible error, never a green `0.00`.
 | `undocumented` | the endpoint exists, the response shape was inferred — verify it once against the console |
 | `no-api` | the provider publishes no balance endpoint; AIPocket checks the key works, the figure is yours to maintain |
 
+## Providers
+
+Nineteen, and the honest summary of the state of LLM billing APIs is the
+`confidence` column: **five** providers publish a balance endpoint you can trust,
+three answer one whose response shape had to be inferred, and eleven publish
+nothing at all — for those AIPocket checks the key and reports whatever figure you
+choose to keep.
+
+| provider | id | confidence | reports |
+|---|---|---|---|
+| Anthropic | `anthropic` | no-api | key check only |
+| Cerebras | `cerebras` | no-api | key check only |
+| DeepInfra | `deepinfra` | no-api | key check only |
+| DeepSeek | `deepseek` | official | balance |
+| Entrim.ai | `entrim` | undocumented | balance (inferred) |
+| fal.ai | `fal` | official | balance |
+| Google Gemini | `gemini` | no-api | key check only |
+| Groq | `groq` | no-api | key check only |
+| Mistral AI | `mistral` | no-api | key check only |
+| Moonshot AI (Kimi) | `moonshot` | official | balance |
+| Nebius Token Factory | `nebius` | no-api | key check only |
+| Neuralwatt | `neuralwatt` | undocumented | balance (inferred) |
+| Novita AI | `novita` | official | balance |
+| OpenAI | `openai` | no-api | key check only |
+| OpenRouter | `openrouter` | official | balance |
+| Replicate | `replicate` | no-api | key check only |
+| SiliconFlow | `siliconflow` | undocumented | balance (inferred) |
+| Together AI | `together` | no-api | key check only |
+| xAI | `xai` | no-api | key check only |
+
+A provider that ships a balance API gains one here; that is data, not a release.
+Adding one is a single YAML file — see [Adding a provider](#adding-a-provider).
+
 ## Install
 
 ```bash
@@ -67,6 +113,7 @@ That is the one question worth being able to answer after a security advisory.
 ```bash
 aipocket                        # all configured providers
 aipocket openrouter deepseek    # just these
+aipocket --all                  # include the ones with no credential configured
 aipocket --json                 # machine-readable
 aipocket providers              # what's known, and where each key is read from
 aipocket audit                  # every host that would be contacted, before you run anything

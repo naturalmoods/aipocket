@@ -11,33 +11,39 @@
 # pedantry: every real key format is also a valid POSIX variable name, so a
 # looser rule printed a mis-pasted key back out as an "environment variable" in
 # `aipocket providers`, `aipocket audit`, the JSON output and MCP results.
+#
+# Nothing here is required. With no config at all, every provider reads its
+# conventional variable — `aipocket providers` lists them.
 
 providers:
+  # A provider that publishes a balance API: nothing to configure but the key.
   openrouter:
-    key: command:op read op://Private/OpenRouter/credential
-
+    key: command:op read op://Private/OpenRouter/credential   # 1Password
   deepseek:
-    key: command:pass show llm/deepseek
+    key: command:pass show llm/deepseek                       # pass / gopass
+  moonshot:
+    key: file:~/.secrets/moonshot                             # 0600 enforced
+  fal:
+    key: env:FAL_KEY
 
-  neuralwatt:
-    key: file:~/.secrets/neuralwatt
-
-  entrim:
-    key: env:ENTRIM_API_KEY
-    # Entrim publishes no balance endpoint. If `aipocket probe entrim` finds one,
-    # point at it here — and please send it back as a manifest PR.
-    # balance_url: https://api.entrim.ai/v1/credits
-
+  # A provider with no balance API. AIPocket checks the key and reports whatever
+  # figure you keep by hand; it is never folded into the verified total.
   groq:
-    # Groq exposes no balance API. AIPocket verifies the key and reports this
-    # figure separately; it is never folded into the verified total.
     manual: 25.00
     # Optional, YYYY-MM-DD: when you last read that figure off the console. The
     # row then says "user-maintained figure (2026-08-01, 17 days ago)", because
-    # the only thing that makes a hand-kept number misleading is its age. No
-    # threshold and no warning: how old is too old depends on how fast you spend,
-    # which this tool has no way of knowing.
+    # the one thing that makes a hand-kept number misleading is its age. No
+    # threshold and no warning — how old is too old depends on how fast you
+    # spend, which this tool has no way of knowing.
     as_of: 2026-08-01
 
-  # openai:
+  # An endpoint AIPocket does not ship yet: point at it now, and please send it
+  # back as a manifest pull request. `aipocket probe entrim` looks for one.
+  entrim:
+    key: env:ENTRIM_API_KEY
+    # balance_url: https://api.entrim.ai/v1/credits
+
+  # Switch a provider off entirely. Nothing contacts it after this — not even an
+  # explicit `aipocket anthropic` or `aipocket probe anthropic`.
+  # anthropic:
   #   disabled: true

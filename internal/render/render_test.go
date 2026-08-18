@@ -271,6 +271,48 @@ func TestNoCredentialsAtAllExplainsItselfInsteadOfPrintingAnEmptyTable(t *testin
 	}
 }
 
+// The closing lines grew with the registry: nineteen collapsed ids on one line is
+// over two hundred characters, which a terminal breaks mid-id at whatever column
+// it happens to be. Wrapping is done here so the break lands between names — and
+// nothing may be dropped in the process, which is the assertion that matters.
+func TestTheClosingLinesWrapWithoutLosingAnything(t *testing.T) {
+	var results []core.Result
+	var excluded []string
+	for _, id := range []string{
+		"anthropic", "cerebras", "deepinfra", "deepseek", "entrim", "fal", "gemini",
+		"groq", "mistral", "moonshot", "nebius", "neuralwatt", "novita", "openai",
+		"openrouter", "replicate", "siliconflow", "together", "xai",
+	} {
+		results = append(results, core.Result{ID: id, Name: strings.ToUpper(id),
+			State: core.StateUnconfigured, Confidence: manifest.StatusOfficial})
+		excluded = append(excluded, id+" (user-maintained)")
+	}
+	// One shown row, so the table renders rather than the first-run hint.
+	results = append(results, core.Result{ID: "acme", Name: "Acme", State: core.StateOK,
+		Balance: balance(1), Currency: "USD", Confidence: manifest.StatusOfficial})
+
+	var b strings.Builder
+	Table(&b, core.Report{Results: results, TotalVerified: 1, Excluded: excluded}, Options{})
+	out := b.String()
+
+	for _, line := range strings.Split(out, "\n") {
+		// The table's own rows are as wide as their content requires; the closing
+		// lines are the ones under this rule.
+		if strings.HasPrefix(line, "  ") && !strings.Contains(line, "─") &&
+			len([]rune(line)) > 82 {
+			t.Errorf("a closing line is %d runes wide:\n%s", len([]rune(line)), line)
+		}
+	}
+	for _, id := range []string{"anthropic", "xai", "siliconflow", "novita"} {
+		if !strings.Contains(out, id) {
+			t.Errorf("wrapping dropped %q:\n%s", id, out)
+		}
+	}
+	if !strings.Contains(out, "19 providers have no credential configured") {
+		t.Errorf("the count is missing:\n%s", out)
+	}
+}
+
 // Twenty providers and four configured keys must not produce sixteen rows saying
 // a variable is not set. The collapsed ids are still named, though: a row that
 // silently vanished would make a misspelled variable name look like a provider

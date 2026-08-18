@@ -19,9 +19,13 @@ User-Agent. Keep that split when adding code or docs. The checkout directory hap
 Planned work lives in GitHub issues under the **v1.0.0** milestone:
 <https://github.com/naturalmoods/aipocket/milestone/1>. Each one is written to stand on
 its own — which file, which invariant, what the test has to prove — because the reasoning
-behind a change is exactly what a diff does not preserve. #5 and #6 are provider
-checklists rather than single tasks; the rest are roughly one sitting each. Each issue names
-the test that closes it — see **Testing conventions**, which is the gate, not a preference.
+behind a change is exactly what a diff does not preserve. Each issue names the test that
+closes it — see **Testing conventions**, which is the gate, not a preference.
+
+The *closed* issues are half the record. Two of them are provider checklists whose unticked
+entries say which providers were declined and on what evidence — a documented refusal is
+worth as much as a manifest, and it is the only thing that stops the same candidate being
+researched twice.
 
 **Non-goals** below is the other half of that record: what was decided against, and why.
 A plausible-sounding feature that appears in neither list is worth asking about before
