@@ -69,6 +69,28 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # A released binary has to name the tag it was built from. v1.1.0 shipped
+      # calling itself "1.1.0", because goreleaser's .Version strips the leading v
+      # while a `go install` build of the same commit reports "v1.1.0" — so one
+      # release answered "which version am I running" two different ways, in the
+      # binary and in the User-Agent a provider sees. The ldflags now use .Tag, and
+      # this step is what keeps them using it: it runs after the build and before
+      # the release is published, so a mismatch never becomes a download.
+      - name: the binary must name the tag it was built from
+        env:
+          # Via the environment, not interpolated: a tag name is attacker-chosen
+          # text and `run:` is a shell.
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -eu
+          tar xzf "dist/aipocket_${TAG#v}_linux_amd64.tar.gz" -C /tmp aipocket
+          got=$(/tmp/aipocket version)
+          echo "$got"
+          if [ "$got" != "aipocket $TAG" ]; then
+            echo "::error::the built binary reports '$got', but this is $TAG"
+            exit 1
+          fi
+
       # Build provenance lets anyone verify a downloaded binary was produced by
       # this workflow from this commit — the relevant guarantee for a tool that
       # reads your API keys. subject-path is a newline-separated list of globs;
