@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -124,8 +125,16 @@ func TestInitializeHandshake(t *testing.T) {
 	}
 	// The instructions steer the model away from presenting an inferred figure
 	// as fact, which is the whole reason confidence is modelled at all.
-	if !strings.Contains(res["instructions"].(string), "undocumented") {
-		t.Error("instructions must explain the confidence levels")
+	// The instructions are part of the v1.0.0 promise, not decoration: the
+	// confidence level has to reach the model in words, because by the time a
+	// figure is in a sentence the field name is gone.
+	for _, level := range []string{"official", "undocumented", "no-api"} {
+		if !strings.Contains(res["instructions"].(string), level) {
+			t.Errorf("instructions must explain the %q confidence level", level)
+		}
+	}
+	if !strings.Contains(res["instructions"].(string), "authoritative") {
+		t.Error("instructions must tell the model not to present an unverified figure as fact")
 	}
 }
 
@@ -190,6 +199,66 @@ func TestToolsListShape(t *testing.T) {
 		if !seen[want] {
 			t.Errorf("missing tool %q", want)
 		}
+	}
+}
+
+// The tool names are only half of what a client depends on. `providers` is the
+// argument name a model writes, and the enum is how it learns which ids exist
+// without a second call — rename either and every existing test here stays
+// green while every caller breaks. From v1.0.0 the tool surface is a contract,
+// so it gets an assertion rather than a convention.
+//
+// Like the --json field names, a failure here is a prompt to change the literals
+// deliberately, not proof of a bug.
+func TestTheToolSurfaceIsAContract(t *testing.T) {
+	s, done := newSession(t, func(w http.ResponseWriter, r *http.Request) {})
+	defer done()
+
+	s.send(map[string]any{"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
+	tools := s.recv()["result"].(map[string]any)["tools"].([]any)
+
+	byName := map[string]map[string]any{}
+	var names []string
+	for _, raw := range tools {
+		tool := raw.(map[string]any)
+		name := tool["name"].(string)
+		byName[name] = tool
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	if strings.Join(names, ",") != "get_balances,list_providers" {
+		t.Fatalf("the tool set changed: %v", names)
+	}
+
+	schema := byName["get_balances"]["inputSchema"].(map[string]any)
+	if schema["additionalProperties"] != false {
+		t.Error("get_balances must refuse unknown arguments")
+	}
+	props, _ := schema["properties"].(map[string]any)
+	if len(props) != 1 || props["providers"] == nil {
+		t.Fatalf(`get_balances arguments changed; "providers" is the documented name: %v`, props)
+	}
+	arg := props["providers"].(map[string]any)
+	if arg["type"] != "array" {
+		t.Errorf("providers must be an array, got %v", arg["type"])
+	}
+	items, _ := arg["items"].(map[string]any)
+	if items["type"] != "string" {
+		t.Errorf("providers items must be strings, got %v", items["type"])
+	}
+	// The enum is the registry's own ids. A stale or empty list sends the model
+	// looking for provider names somewhere else.
+	enum, ok := items["enum"].([]any)
+	if !ok || len(enum) != 1 || enum[0] != "acme" {
+		t.Errorf("providers items must enumerate the registry's ids, got %v", items["enum"])
+	}
+
+	empty := byName["list_providers"]["inputSchema"].(map[string]any)
+	if empty["additionalProperties"] != false {
+		t.Error("list_providers must refuse unknown arguments")
+	}
+	if props, _ := empty["properties"].(map[string]any); len(props) != 0 {
+		t.Errorf("list_providers takes no arguments, got %v", props)
 	}
 }
 
