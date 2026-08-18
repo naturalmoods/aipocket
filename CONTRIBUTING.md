@@ -47,7 +47,13 @@ This is the part that matters most, and the tests enforce it.
   Requires a `docs:` link.
 - `undocumented` — the endpoint exists but the response shape is inferred.
   Requires `notes:` saying what was guessed. The reading is labelled
-  "inferred field" in every output format.
+  "inferred field" in every output format. Compare it once against the provider's
+  own console and record the date in `notes:` — and expect the console to round.
+  Neuralwatt's portal shows two decimals where its API returns three, so a
+  difference in the last decimal is display rounding and not a different field. A
+  mismatch in the *first* decimal is the signal that the path names something else.
+  Record that the comparison happened, never the figure: a balance in a manifest is
+  someone's money in a public git history.
 - `no-api` — no balance endpoint. Use a `verify:` endpoint so the key can still
   be checked. **Check that the endpoint actually requires the credential** — see
   below; two candidates have failed this. Must not define `balance:`. Requires

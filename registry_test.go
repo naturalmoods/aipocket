@@ -90,7 +90,9 @@ func TestNoAPIClaimsCarryTheDateTheyWereChecked(t *testing.T) {
 }
 
 // Every provider that reports a balance, resolved through the manifest that
-// ships against the example response its own documentation publishes.
+// ships against a response shape that came from the provider itself —
+// documented for the official ones, captured from a live response for
+// neuralwatt, whose endpoint is documented and whose schema is not.
 //
 // A typo in a jpath is the likeliest mistake in one of these files, and without
 // this test it surfaces as "the provider answered but no balance field matched"
@@ -98,7 +100,7 @@ func TestNoAPIClaimsCarryTheDateTheyWereChecked(t *testing.T) {
 // this does not claim is that the provider still returns that shape; the visible
 // error in core is for that. It claims the manifest agrees with the provider's
 // own documentation, which is the part a test can settle.
-func TestBalancePathsResolveTheProvidersDocumentedExample(t *testing.T) {
+func TestBalancePathsResolveTheProvidersOwnResponseShape(t *testing.T) {
 	cases := map[string]struct {
 		body     string
 		want     float64
@@ -122,6 +124,21 @@ func TestBalancePathsResolveTheProvidersDocumentedExample(t *testing.T) {
 			body: `{"username":"my-team","credits":{"current_balance":24.5,
 			        "currency":"USD"}}`,
 			want: 24.5, currency: "USD",
+		},
+		"neuralwatt": {
+			// Field names captured from a live response; the values are invented,
+			// because only the shape matters here. Four guessed paths shipped before
+			// this — none of them resolved against the real response, and `balance`
+			// turned out to be an object, which is why the run reported a schema
+			// mismatch instead of a number.
+			body: `{"snapshot_at":"2026-08-18T00:00:00Z",
+			        "balance":{"credits_remaining_usd":12.5,"total_credits_usd":50,
+			        "credits_used_usd":37.5,"accounting_method":"new",
+			        "legacy_credits_usd":0,"new_credits_usd":12.5},
+			        "usage":{"lifetime":{"cost_usd":37.5,"requests":10,"tokens":1000,
+			        "energy_kwh":0.1}},"limits":{"rate_limit_tier":"free"},
+			        "key":{"name":"laptop"}}`,
+			want: 12.5, currency: "USD",
 		},
 		"novita": {
 			// Integers in 1/10000 USD. Without the manifest's scale this resolves
@@ -163,7 +180,7 @@ func TestBalancePathsResolveTheProvidersDocumentedExample(t *testing.T) {
 				}
 				return
 			}
-			t.Error("no amount in the manifest matched the provider's own documented example")
+			t.Error("no amount in the manifest matched the shape the provider actually returns")
 		})
 	}
 }
