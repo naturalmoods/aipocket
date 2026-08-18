@@ -16,7 +16,7 @@ User-Agent. Keep that split when adding code or docs. The checkout directory hap
 
 ## Open work
 
-Planned work lives in GitHub issues under the **v1.0.0** milestone:
+Planned work lives in GitHub issues under the **v1.1.0** milestone:
 <https://github.com/naturalmoods/aipocket/milestone/1>. Each one is written to stand on
 its own — which file, which invariant, what the test has to prove — because the reasoning
 behind a change is exactly what a diff does not preserve. Each issue names the test that
