@@ -1,0 +1,17 @@
+id: together
+name: Together AI
+status: no-api
+console: https://api.together.ai/settings/billing
+docs: https://docs.together.ai/docs/billing-credits
+notes: >-
+  checked 2026-08-18: Together treats credits as a console matter — you add them
+  in billing settings, and access is suspended when the balance reaches zero —
+  and publishes no endpoint that returns the balance. AIPocket verifies the key
+  against the models list.
+
+auth:
+  type: bearer
+  env: TOGETHER_API_KEY
+
+verify:
+  url: https://api.together.xyz/v1/models

@@ -1,0 +1,20 @@
+id: anthropic
+name: Anthropic
+status: no-api
+console: https://platform.claude.com/settings/billing
+docs: https://platform.claude.com/docs/en/api/models/list
+notes: >-
+  checked 2026-08-18: Anthropic publishes no balance endpoint. The Admin API
+  reports usage and cost — money already spent, not money left — and needs a
+  separate admin key. The models list is the key check, and it requires an
+  anthropic-version header: without one the endpoint answers 400, which would
+  make a perfectly good key look broken.
+
+auth:
+  type: header
+  header: x-api-key
+  headers: {anthropic-version: "2023-06-01"}
+  env: ANTHROPIC_API_KEY
+
+verify:
+  url: https://api.anthropic.com/v1/models

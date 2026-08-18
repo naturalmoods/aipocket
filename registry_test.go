@@ -92,7 +92,10 @@ func TestKnownProvidersPresent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []string{"openrouter", "deepseek", "groq", "neuralwatt", "entrim"} {
+	for _, id := range []string{
+		"openrouter", "deepseek", "groq", "neuralwatt", "entrim",
+		"openai", "anthropic", "gemini", "mistral", "xai", "together", "cerebras",
+	} {
 		if _, ok := reg.Get(id); !ok {
 			t.Errorf("provider %q missing from registry", id)
 		}

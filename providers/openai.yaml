@@ -1,0 +1,17 @@
+id: openai
+name: OpenAI
+status: no-api
+console: https://platform.openai.com/settings/organization/billing/overview
+docs: https://platform.openai.com/docs/api-reference/models
+notes: >-
+  checked 2026-08-18: OpenAI documents the organisation Billing page as the place
+  to see a credit balance, and publishes no API that returns one. The Admin API
+  reports cost — money already spent, not money left. AIPocket verifies the key
+  against the models list and reports whatever figure you choose to track by hand.
+
+auth:
+  type: bearer
+  env: OPENAI_API_KEY
+
+verify:
+  url: https://api.openai.com/v1/models

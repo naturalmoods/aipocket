@@ -1,0 +1,22 @@
+id: gemini
+name: Google Gemini
+status: no-api
+console: https://aistudio.google.com/usage
+docs: https://ai.google.dev/gemini-api/docs/billing
+notes: >-
+  checked 2026-08-18: the Gemini API has no balance endpoint. Google's billing
+  documentation is explicit that prepaid credit balance and transaction history
+  are managed only in the AI Studio billing tab, while costs appear in the Cloud
+  console. This manifest covers the Gemini API (generativelanguage), not Vertex
+  AI, which authenticates with Google Cloud credentials instead of an API key.
+  The key travels in x-goog-api-key; the documented curl example also accepts
+  ?key=, which AIPocket will not use, because a credential in a URL ends up in
+  logs.
+
+auth:
+  type: header
+  header: x-goog-api-key
+  env: GEMINI_API_KEY
+
+verify:
+  url: https://generativelanguage.googleapis.com/v1beta/models
