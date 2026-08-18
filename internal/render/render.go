@@ -97,8 +97,13 @@ func Table(w io.Writer, rep core.Report, opt Options) {
 		} else {
 			state = padR(state, w2)
 		}
+		// The note is where the tool admits how much it actually knows, so it gets
+		// the room to do it. 60 runes stopped being enough once a hand-kept figure
+		// could carry its own age: "no balance API; key valid; user-maintained
+		// figure (2026-08-01, 17 days ago)" is 67, and the part that got cut was
+		// the age — the whole reason for saying it.
 		fmt.Fprintf(w, "  %s  %s  %s  %s\n",
-			padR(r[0], w0), padL(r[1], w1), state, truncate(r[3], 60))
+			padR(r[0], w0), padL(r[1], w1), state, truncate(r[3], 76))
 	}
 
 	fmt.Fprintf(w, "  %s  %s  %s  %s\n",

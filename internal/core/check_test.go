@@ -368,6 +368,52 @@ func TestAFailedKeyCheckStillShowsTheUsersOwnFigure(t *testing.T) {
 	}
 }
 
+// Most of the registry publishes no balance API, so a large share of rows are
+// figures somebody typed. Such a figure has one real weakness and it is not
+// precision — it is age. A 25.00 written eight months ago is not a balance, it is
+// a memory, and nothing in the output used to say so.
+func TestAManualFigureCanSayHowOldItIs(t *testing.T) {
+	t.Setenv("ACME_KEY", "")
+	c, done := harness(t, noAPI, func(w http.ResponseWriter, r *http.Request) {
+		t.Error("a provider with no credential must not be contacted")
+	})
+	defer done()
+
+	asOf := time.Now().UTC().AddDate(0, 0, -16).Format("2006-01-02")
+	v := 25.0
+	c.Config.Providers["acme"] = ProviderConfig{Manual: &v, AsOf: asOf}
+
+	r := runAll(t, c).Results[0]
+	if r.State != StateManual || r.Balance == nil {
+		t.Fatalf("state = %s, balance = %v", r.State, r.Balance)
+	}
+	if !strings.Contains(r.Detail, asOf) {
+		t.Errorf("the date the figure was written is not shown: %q", r.Detail)
+	}
+	// The age is stated, never judged: how old is too old depends on how fast the
+	// account is spent, which a tool with no history cannot know.
+	if !strings.Contains(r.Detail, "16 days ago") {
+		t.Errorf("the age of the figure is not shown: %q", r.Detail)
+	}
+}
+
+// The compatibility half. An undated figure reads exactly as it did before as_of
+// existed: a config that works today keeps working is a v1.0.0 contract, not a
+// courtesy, and this is the test that would notice the new field changing old
+// output.
+func TestAnUndatedManualFigureReadsExactlyAsBefore(t *testing.T) {
+	t.Setenv("ACME_KEY", "")
+	c, done := harness(t, noAPI, func(w http.ResponseWriter, r *http.Request) {})
+	defer done()
+
+	v := 25.0
+	c.Config.Providers["acme"] = ProviderConfig{Manual: &v}
+
+	if got := runAll(t, c).Results[0].Detail; got != "user-maintained figure" {
+		t.Errorf("detail = %q, want the unchanged label", got)
+	}
+}
+
 func TestDisabledProviderIsSkipped(t *testing.T) {
 	t.Setenv("ACME_KEY", "sk-test-abcdefghijklmnop")
 	c, done := harness(t, totalMinusUsed, func(w http.ResponseWriter, r *http.Request) {

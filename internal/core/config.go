@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -43,8 +44,38 @@ type ProviderConfig struct {
 	// the same column as a verified one is how a dashboard starts lying.
 	Manual *float64 `yaml:"manual"`
 
+	// AsOf optionally dates a Manual figure: YYYY-MM-DD.
+	//
+	// Most of the registry publishes no balance API, so a large share of rows are
+	// figures somebody typed. Such a number has one real weakness, and it is not
+	// precision — it is age. A `manual: 25.00` written eight months ago is not a
+	// balance, it is a memory, and nothing in the output said so.
+	//
+	// It is a string rather than a time.Time on purpose. yaml.v3 decodes an
+	// unquoted 2026-08-01 into time.Time but *refuses* the quoted form, and its
+	// error is a raw Go time-parse message — which describeYAMLError correctly
+	// declines to reproduce, so a user who quoted a perfectly good date would be
+	// told only that some value has the wrong type. Parsing it here keeps both
+	// forms working and keeps the error message ours.
+	AsOf string `yaml:"as_of"`
+
 	// Disabled skips the provider entirely.
 	Disabled bool `yaml:"disabled"`
+}
+
+// asOfLayout is the only form a manual figure may be dated in. One format, so
+// that what the config means never depends on where it is read: a locale-aware
+// parser would accept 03/04/2026 as two different days on two machines.
+const asOfLayout = "2006-01-02"
+
+func parseAsOf(s string) (time.Time, error) { return time.Parse(asOfLayout, s) }
+
+// today is the current date in UTC. A figure dated "today" in one time zone and
+// "tomorrow" in another is not worth modelling; the config states a date, and
+// every comparison against it is made in one zone.
+func today() time.Time {
+	n := time.Now().UTC()
+	return time.Date(n.Year(), n.Month(), n.Day(), 0, 0, 0, 0, time.UTC)
 }
 
 // yamlLine pulls the one genuinely useful fact out of a yaml.v3 error.
@@ -165,6 +196,29 @@ func LoadConfig(path string) (*Config, error) {
 			return nil, fmt.Errorf(
 				"%s: providers.%s.manual must be a finite amount no larger than %g",
 				path, id, money.MaxPlausible)
+		}
+		if pc.AsOf != "" {
+			// A date for a figure that does not exist is a mistake worth
+			// reporting, not a line that quietly does nothing: strict both ways
+			// is the rule the rest of this file lives by.
+			if pc.Manual == nil {
+				return nil, fmt.Errorf(
+					"%s: providers.%s.as_of dates a manual figure, but no manual: is set",
+					path, id)
+			}
+			d, err := parseAsOf(pc.AsOf)
+			if err != nil {
+				// The value is not quoted back. It is only meant to be a date,
+				// but "meant to be" is exactly the case where echoing it would be
+				// the mistake: there is no redactor at config-load time, and a
+				// mis-pasted credential can land in any field.
+				return nil, fmt.Errorf(
+					"%s: providers.%s.as_of must be a date in the form YYYY-MM-DD",
+					path, id)
+			}
+			if d.After(today()) {
+				return nil, fmt.Errorf("%s: providers.%s.as_of is in the future", path, id)
+			}
 		}
 	}
 	return cfg, nil
