@@ -1,0 +1,24 @@
+id: fal
+name: fal.ai
+status: official
+console: https://fal.ai/dashboard/usage-billing/billing/
+docs: https://fal.ai/docs/platform-apis/v1/account/billing
+notes: >-
+  The endpoint documents the field and the currency, which is why this is
+  official. Two things about it are worth knowing. The `expand=credits` parameter
+  is required: without it the credits object is absent and AIPocket reports a
+  schema mismatch rather than a balance. And fal documents this endpoint as
+  needing an admin key, which sits against the advice to use the most scoped key
+  a provider offers — reading a balance should not quietly cost you a broader
+  credential, so it is said here instead.
+
+auth:
+  type: bearer
+  scheme: Key
+  env: FAL_KEY
+
+balance:
+  url: https://api.fal.ai/v1/account/billing?expand=credits
+  amounts:
+    - path: $.credits.current_balance
+      currency: USD

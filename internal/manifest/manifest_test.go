@@ -38,6 +38,46 @@ func TestLoadGood(t *testing.T) {
 	}
 }
 
+// The scheme is written directly in front of a credential, so what may stand
+// there is decided at load time and not by a reviewer noticing.
+func TestAuthSchemeIsBoundedAndOnlyMeansSomethingForBearer(t *testing.T) {
+	ok := strings.Replace(good, "auth: {type: bearer, env: EXAMPLE_API_KEY}",
+		"auth: {type: bearer, scheme: Key, env: EXAMPLE_API_KEY}", 1)
+	reg, err := load(t, ok)
+	if err != nil {
+		t.Fatalf("a plain scheme must load: %v", err)
+	}
+	if p, _ := reg.Get("example"); p.Auth.AuthScheme() != "Key" {
+		t.Errorf("scheme = %q", p.Auth.AuthScheme())
+	}
+	// The default matters more than the field: every existing manifest relies on
+	// it.
+	if reg, err := load(t, good); err != nil {
+		t.Fatal(err)
+	} else if p, _ := reg.Get("example"); p.Auth.AuthScheme() != "Bearer" {
+		t.Errorf("a manifest without a scheme must send Bearer, got %q", p.Auth.AuthScheme())
+	}
+
+	refused := map[string]string{
+		"two words":            `auth: {type: bearer, scheme: "Key Bearer", env: EXAMPLE_API_KEY}`,
+		"a newline":            `auth: {type: bearer, scheme: "Key\nX-Evil: 1", env: EXAMPLE_API_KEY}`,
+		"a colon":              `auth: {type: bearer, scheme: "Key:", env: EXAMPLE_API_KEY}`,
+		"leading digit":        `auth: {type: bearer, scheme: "1Key", env: EXAMPLE_API_KEY}`,
+		"together with header": `auth: {type: header, header: x-api-key, scheme: Key, env: EXAMPLE_API_KEY}`,
+	}
+	for what, line := range refused {
+		y := strings.Replace(good, "auth: {type: bearer, env: EXAMPLE_API_KEY}", line, 1)
+		err := func() error { _, err := load(t, y); return err }()
+		if err == nil {
+			t.Errorf("%s must be refused", what)
+			continue
+		}
+		if !strings.Contains(err.Error(), "auth.scheme") {
+			t.Errorf("%s: refused, but not by the scheme validation: %v", what, err)
+		}
+	}
+}
+
 // A static header is how a manifest satisfies a provider that requires one:
 // Anthropic's /v1/models answers 400 without anthropic-version, and the row
 // would report "key check failed" for a good key. It is data in a file, so what

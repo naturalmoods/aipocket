@@ -117,6 +117,11 @@ func TestBalancePathsResolveTheProvidersDocumentedExample(t *testing.T) {
 			        "status":"normal","chargeBalance":"88.00","totalBalance":"88.88"}}`,
 			want: 88.88, currency: "USD",
 		},
+		"fal": {
+			body: `{"username":"my-team","credits":{"current_balance":24.5,
+			        "currency":"USD"}}`,
+			want: 24.5, currency: "USD",
+		},
 	}
 
 	reg, err := aipocket.Registry()
@@ -162,7 +167,7 @@ func TestKnownProvidersPresent(t *testing.T) {
 	for _, id := range []string{
 		"openrouter", "deepseek", "groq", "neuralwatt", "entrim",
 		"openai", "anthropic", "gemini", "mistral", "xai", "together", "cerebras",
-		"moonshot", "siliconflow", "replicate", "deepinfra", "nebius",
+		"moonshot", "siliconflow", "replicate", "deepinfra", "nebius", "fal",
 	} {
 		if _, ok := reg.Get(id); !ok {
 			t.Errorf("provider %q missing from registry", id)

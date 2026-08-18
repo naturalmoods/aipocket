@@ -240,7 +240,10 @@ func (c *Client) Get(ctx context.Context, ep *manifest.Endpoint, auth manifest.A
 	}
 	switch auth.Type {
 	case "bearer":
-		req.Header.Set("Authorization", "Bearer "+key)
+		// AuthScheme is "Bearer" unless a manifest says otherwise, and manifest
+		// validation has already refused anything but a single token — so this
+		// cannot be made to inject a second header line.
+		req.Header.Set("Authorization", auth.AuthScheme()+" "+key)
 	case "header":
 		req.Header.Set(auth.Header, key)
 	default:
