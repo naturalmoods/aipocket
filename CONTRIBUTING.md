@@ -49,8 +49,9 @@ This is the part that matters most, and the tests enforce it.
   Requires `notes:` saying what was guessed. The reading is labelled
   "inferred field" in every output format.
 - `no-api` — no balance endpoint. Use a `verify:` endpoint so the key can still
-  be checked. Must not define `balance:`. Requires `notes:`, and the note has to
-  record when you looked: `checked 2026-08-17: the billing FAQ documents no
+  be checked. **Check that the endpoint actually requires the credential** — see
+  below; two candidates have failed this. Must not define `balance:`. Requires
+  `notes:`, and the note has to record when you looked: `checked 2026-08-17: the billing FAQ documents no
   balance endpoint and directs users to the console`. A test enforces the date.
   This is the one claim in the registry that no test can verify — it is about a
   provider's documentation, not about this code — and the only one that rots on
@@ -61,6 +62,26 @@ request rejected outright. It is not cosmetic: `official` is the only status
 whose figures enter the **verified total**. Mislabelling one moves a guess into
 the number users trust, which is the exact failure this project exists to
 prevent.
+
+### A verify endpoint has to require the credential
+
+Test it before you commit it, with no key at all:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' https://api.acme.test/v1/models   # want 401
+```
+
+A models list is the obvious choice for a key check and it is sometimes the wrong
+one. DeepInfra documents theirs as needing no authentication; Straitly's answers
+`200` to a request with no credential and to one with a garbage key. Verifying
+against either would print **"key valid" for a key that had been revoked** — the
+tool being confidently wrong about the one thing it can tell you for a provider
+with no balance API, which is worse than saying nothing.
+
+If the only authenticated GET is an odd one, use it and say why in `notes:`.
+`straitly.yaml` reads an activity export with its `since` parameter set far in the
+future, so the request returns no rows: the only thing wanted from it is the
+authentication result.
 
 ### The Authorization scheme
 
