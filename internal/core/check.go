@@ -220,7 +220,7 @@ func (c *Checker) checkOne(ctx context.Context, p *manifest.Provider) Result {
 				res.State, res.Balance, res.Currency = StateManual, pc.Manual, "USD"
 				res.Confidence = manifest.StatusNoAPI
 				res.Error = ""
-				res.Detail = "user-maintained figure"
+				res.Detail = describeManual(pc.AsOf)
 			}
 			return res
 		}
@@ -248,7 +248,7 @@ func (c *Checker) checkOne(ctx context.Context, p *manifest.Provider) Result {
 			}
 		}
 		if pc.Manual != nil {
-			res.Detail = joinDetail(res.Detail, "user-maintained figure")
+			res.Detail = joinDetail(res.Detail, describeManual(pc.AsOf))
 		}
 		return res
 	}
@@ -329,6 +329,36 @@ func (c *Checker) describe(err error) (msg, provider string) {
 		return he.Summary(), he.RedactedBody(c.Redactor.Apply)
 	}
 	return safetext.Sanitize(c.Redactor.Apply(err.Error())), ""
+}
+
+// describeManual labels a user-maintained figure, with the age of the figure
+// when the config dated it.
+//
+// The age is stated and not judged. How old is too old depends entirely on how
+// fast the account is being spent, and a tool that keeps no history and knows no
+// spend rate cannot answer that — so it says "47 days ago" and leaves the
+// conclusion to the person who typed the number. An undated figure reads exactly
+// as it did before this existed, which is the compatibility half of the feature.
+func describeManual(asOf string) string {
+	const label = "user-maintained figure"
+	if asOf == "" {
+		return label
+	}
+	d, err := parseAsOf(asOf)
+	if err != nil {
+		// Unreachable after LoadConfig, which refuses a date it cannot parse.
+		// Reached only by a Config built in code, and then the label alone is
+		// still true.
+		return label
+	}
+	switch days := int(today().Sub(d).Hours() / 24); {
+	case days <= 0:
+		return fmt.Sprintf("%s (%s, today)", label, asOf)
+	case days == 1:
+		return fmt.Sprintf("%s (%s, 1 day ago)", label, asOf)
+	default:
+		return fmt.Sprintf("%s (%s, %d days ago)", label, asOf, days)
+	}
 }
 
 func joinDetail(parts ...string) string {

@@ -97,7 +97,8 @@ providers:
     key: env:ENTRIM_API_KEY
     balance_url: https://api.entrim.ai/v1/credits             # see `aipocket probe`
   groq:
-    manual: 25.00     # no balance API; reported separately, never in the total
+    manual: 25.00        # no balance API; reported separately, never in the total
+    as_of: 2026-08-01    # optional: when you read it. The row shows the age.
 ```
 
 Shelling out to whatever secret manager the machine already has is both more

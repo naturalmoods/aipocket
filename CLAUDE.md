@@ -166,7 +166,16 @@ becomes another host that receives the key, and the closing paragraph says plain
 `command:` helper is a program AIPocket cannot account for.
 
 **Strict YAML both ways.** `dec.KnownFields(true)` on manifests and on user config: a typo
-must fail, not silently no-op.
+must fail, not silently no-op. `as_of:` without a `manual:` is an error for the same
+reason — a date for a figure that does not exist is a mistake, not a no-op.
+
+**A hand-kept figure states its age, and nothing more.** `as_of:` renders as
+"user-maintained figure (2026-08-01, 17 days ago)". There is deliberately no staleness
+threshold and no warning: how old is too old depends on the spend rate, and a tool that
+keeps no history cannot know it. `AsOf` is a `string` parsed by `core.parseAsOf`, not a
+`time.Time`, because yaml.v3 refuses the *quoted* form of a date and its error is a raw
+Go time-parse message that `describeYAMLError` correctly declines to reproduce — a user
+who quoted a good date would be told only that some value has the wrong type.
 
 ## Non-goals
 

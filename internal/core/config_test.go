@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/naturalmoods/aipocket/internal/manifest"
 )
@@ -39,6 +40,63 @@ func TestParseErrorDoesNotEchoTheOffendingValue(t *testing.T) {
 	if strings.Contains(err.Error(), "sk-live") {
 		t.Fatalf("the value was echoed: %v", err)
 	}
+}
+
+// Both YAML spellings of a date have to work. yaml.v3 decodes an unquoted
+// 2026-08-01 into a time.Time but refuses the quoted form with a raw Go
+// time-parse error — which describeYAMLError rightly declines to reproduce, so a
+// user who quoted a perfectly good date would be told only that some value has
+// the wrong type. Parsing it here is what keeps both forms working.
+func TestBothQuotedAndUnquotedDatesAreAccepted(t *testing.T) {
+	for _, form := range []string{"2026-08-01", `"2026-08-01"`, "'2026-08-01'"} {
+		p := write(t, "providers:\n  groq:\n    manual: 25.00\n    as_of: "+form+"\n")
+		cfg, err := LoadConfig(p)
+		if err != nil {
+			t.Fatalf("as_of: %s was refused: %v", form, err)
+		}
+		if got := cfg.Providers["groq"].AsOf; got != "2026-08-01" {
+			t.Errorf("as_of: %s parsed as %q", form, got)
+		}
+	}
+}
+
+// A date for a figure that does not exist is a mistake worth reporting. The
+// config is held to "a typo must fail, not silently no-op" everywhere else.
+func TestADateWithoutAFigureIsRefused(t *testing.T) {
+	p := write(t, "providers:\n  groq:\n    as_of: 2026-08-01\n")
+	err := loadErr(t, p)
+	if !strings.Contains(err.Error(), "as_of") {
+		t.Errorf("the error should name the field: %v", err)
+	}
+}
+
+func TestAFigureCannotBeDatedInTheFuture(t *testing.T) {
+	future := time.Now().UTC().AddDate(0, 0, 2).Format("2006-01-02")
+	p := write(t, "providers:\n  groq:\n    manual: 25.00\n    as_of: "+future+"\n")
+	loadErr(t, p)
+}
+
+// The same rule as every other config error: say which field and what was
+// expected, reproduce nothing. A mis-pasted credential can land in any field,
+// and there is no redactor at config-load time.
+func TestAMalformedDateIsRefusedWithoutEchoingIt(t *testing.T) {
+	p := write(t, "providers:\n  groq:\n    manual: 25.00\n    as_of: sk-live-0123456789\n")
+	err := loadErr(t, p)
+	if strings.Contains(err.Error(), "sk-live") {
+		t.Fatalf("the value was echoed: %v", err)
+	}
+	if !strings.Contains(err.Error(), "YYYY-MM-DD") {
+		t.Errorf("the error should state the expected form: %v", err)
+	}
+}
+
+func loadErr(t *testing.T, path string) error {
+	t.Helper()
+	_, err := LoadConfig(path)
+	if err == nil {
+		t.Fatal("expected the config to be refused")
+	}
+	return err
 }
 
 func TestUnknownFieldIsRejected(t *testing.T) {
