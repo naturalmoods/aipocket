@@ -245,6 +245,13 @@ outright.
 `total:`/`used:` pair, plus `currency:`. Only derived (`total - used`) amounts get the
 negative check — a direct field could legitimately be negative for an overdraft model.
 
+`scale:` converts a provider's unit into the currency's own (Novita reports 1/10000 USD).
+It is a `*float64` so `scale: 0` is distinguishable from no scale and can be refused;
+`money.Plausible` runs on the *scaled* figure, since that is the one reported. Note that
+the plausibility bound is no defence against a missing scale — an unconverted 1e6 is a
+believable number of dollars — which is why the registry test resolves every balance
+manifest against the provider's own documented example.
+
 ## MCP server
 
 `aipocket mcp` speaks newline-delimited JSON-RPC on stdio. Two read-only tools:

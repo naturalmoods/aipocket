@@ -14,6 +14,7 @@ package manifest
 import (
 	"fmt"
 	"io/fs"
+	"math"
 	"net/url"
 	"regexp"
 	"sort"
@@ -180,6 +181,16 @@ type Amount struct {
 	Used     string `yaml:"used"`
 	Currency string `yaml:"currency"`
 
+	// Scale converts the provider's unit into the currency's own. Novita reports
+	// integers in 1/10000 USD, so 0.0001 turns 1000000 into the $100 it means;
+	// without it the row would claim a million dollars and money.Plausible would
+	// not object, because a million dollars is a plausible amount of money.
+	//
+	// A pointer so that `scale: 0` is distinguishable from no scale at all. The
+	// first is refused — it would report every account as empty — and a setting
+	// that silently means 1 is exactly what this format does not do.
+	Scale *float64 `yaml:"scale"`
+
 	path, total, used *jpath.Path
 }
 
@@ -199,7 +210,11 @@ func (a Amount) IsDerived() bool { return a.path == nil }
 // Resolve reads the first amount that the response satisfies.
 func (a Amount) Resolve(doc any) (value float64, ok bool) {
 	if a.path != nil {
-		return a.path.Number(doc)
+		v, ok := a.path.Number(doc)
+		if !ok {
+			return 0, false
+		}
+		return a.scaled(v)
 	}
 	total, tok := a.total.Number(doc)
 	used, uok := a.used.Number(doc)
@@ -210,11 +225,27 @@ func (a Amount) Resolve(doc any) (value float64, ok bool) {
 	// as their difference passing it: two figures just inside the bound subtract
 	// to one twice as far outside it. Every figure the tool reports is checked
 	// where it is produced, not only where it is read.
-	diff := total - used
-	if !money.Plausible(diff) {
+	//
+	// Scaling the difference is the same arithmetic as scaling both operands, and
+	// it puts the check after the conversion — where the figure that will actually
+	// be reported finally exists.
+	return a.scaled(total - used)
+}
+
+// scaled applies the amount's unit conversion and gates the result.
+//
+// The order is the point: money.Plausible runs on the scaled figure, because that
+// is the one that reaches the report. Checking before the conversion would refuse
+// a legitimate reading whose raw units are large and pass a scaled one that is
+// not money at all.
+func (a Amount) scaled(v float64) (float64, bool) {
+	if a.Scale != nil {
+		v *= *a.Scale
+	}
+	if !money.Plausible(v) {
 		return 0, false
 	}
-	return diff, true
+	return v, true
 }
 
 // Detail renders the underlying figures for an amount derived from
@@ -397,6 +428,11 @@ func (e *Endpoint) compile(needAmounts bool) error {
 		a := &e.Amounts[i]
 		if a.Currency == "" {
 			return fmt.Errorf("amount %d: currency is required", i)
+		}
+		// NaN fails the > 0 comparison, so this covers zero, negatives and NaN;
+		// the Inf check is separate because +Inf is greater than zero.
+		if a.Scale != nil && (!(*a.Scale > 0) || math.IsInf(*a.Scale, 0)) {
+			return fmt.Errorf("amount %d: scale must be a finite number greater than zero", i)
 		}
 		switch {
 		case a.Path != "" && (a.Total != "" || a.Used != ""):

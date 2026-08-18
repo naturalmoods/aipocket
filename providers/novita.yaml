@@ -1,0 +1,27 @@
+id: novita
+name: Novita AI
+status: official
+console: https://novita.ai/settings/billing
+docs: https://novita.ai/docs/api-reference/basic-get-user-balance
+notes: >-
+  The documentation states the unit as well as the fields: the figures are
+  integers in 1/10000 USD, which is what `scale: 0.0001` converts. Do not
+  simplify that away — without it the row reports 1000000 USD for an account
+  holding $100, and the money check will not object, because a million dollars is
+  a perfectly plausible amount of money.
+
+  availableBalance is what the account may spend: the documented example shows it
+  as cashBalance plus creditLimit, so on an account with a credit line it is more
+  than the prepaid cash. That is the figure worth knowing before starting a long
+  job, and it is the same choice the other manifests make.
+
+auth:
+  type: bearer
+  env: NOVITA_API_KEY
+
+balance:
+  url: https://api.novita.ai/openapi/v1/billing/balance/detail
+  amounts:
+    - path: $.availableBalance
+      scale: 0.0001
+      currency: USD
