@@ -4,9 +4,25 @@ status: undocumented
 console: https://portal.neuralwatt.com/
 docs: https://portal.neuralwatt.com/docs/api/overview
 notes: >-
-  The /v1/quota endpoint is documented as returning "account balance, usage and
-  limits", but the response schema is not published. The paths below are
-  inferred; compare once against the portal and open an issue if they drift.
+  checked 2026-08-18: /v1/quota is documented as returning "account balance, usage
+  and limits", but the response schema still is not published — the documentation
+  names the endpoint and the word balance, and none of the field names. So the
+  status stays undocumented and the figure stays out of the verified total, even
+  though the reading now works: official means the provider documents the field,
+  not that AIPocket managed to find it.
+
+  The path is no longer a guess. This manifest previously listed four candidates,
+  none of which resolved against a live account — one of them, `$.balance`, turned
+  out to name an object, so the run reported a schema mismatch instead of a number,
+  which is the behaviour that caught this. The real field is
+  balance.credits_remaining_usd, confirmed against a live response on 2026-08-18.
+  Its name states the currency.
+
+  One candidate only, deliberately. The same object carries total_credits_usd,
+  credits_used_usd, legacy_credits_usd and new_credits_usd next to an
+  accounting_method field, so the neighbours are not interchangeable with the
+  remaining balance: a fallback would quietly report a different quantity if this
+  field were ever renamed. A visible error is the better outcome.
 
 auth:
   type: bearer
@@ -15,11 +31,5 @@ auth:
 balance:
   url: https://api.neuralwatt.com/v1/quota
   amounts:
-    - path: $.balance_usd
-      currency: USD
-    - path: $.quota.balance_usd
-      currency: USD
-    - path: $.balance
-      currency: USD
-    - path: $.credits_remaining
+    - path: $.balance.credits_remaining_usd
       currency: USD
