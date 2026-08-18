@@ -313,7 +313,43 @@ func readFile(spec string) (string, error) {
 	return v, nil
 }
 
+// commandSlots bounds how many credential helpers run at the same time.
+//
+// core.Checker.Run starts one goroutine per provider and the registry now holds
+// seventeen, so a config that reads every key through a helper would start
+// seventeen `op read` processes in the same instant: one rate limit to trip, one
+// terminal filling with pinentry prompts, one keychain asked seventeen times at
+// once. Four is slower on paper and much better behaved in practice. The HTTP
+// requests stay fully parallel, which is where the wall-clock time actually goes.
+//
+// A package-level channel rather than a field on anything: there is one machine
+// and one set of helpers on it, however many Checkers a process happens to build.
+var commandSlots = make(chan struct{}, 4)
+
+// withCommandSlot runs f once a slot is free, honouring cancellation while it
+// waits. Ctrl-C during a queue of helpers must still return promptly.
+func withCommandSlot(ctx context.Context, f func() (string, error)) (string, error) {
+	select {
+	case commandSlots <- struct{}{}:
+		defer func() { <-commandSlots }()
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+	return f()
+}
+
 func runCommand(ctx context.Context, line string) (string, error) {
+	return withCommandSlot(ctx, func() (string, error) { return execCommand(ctx, line) })
+}
+
+// execCommand is runCommand's body, entered only while holding a slot.
+//
+// The deadline starts here and not in runCommand, which is the whole reason for
+// the split: commandTimeout has to cover an interactive unlock — Touch ID, a
+// master password — and charging a helper for the time it spent queued behind
+// three others would expire that deadline on a helper nobody had been asked to
+// unlock yet.
+func execCommand(ctx context.Context, line string) (string, error) {
 	// The timeout is enforced by exec.CommandContext rather than by racing a
 	// timer against a goroutine. The earlier hand-rolled version read
 	// cmd.Process from one goroutine while Start wrote it in another — a data

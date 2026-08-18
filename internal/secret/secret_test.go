@@ -7,9 +7,91 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
+
+// Seventeen providers resolved concurrently means seventeen credential helpers
+// started at once, which is how a 1Password rate limit gets tripped and how a
+// terminal fills with pinentry prompts nobody can answer in order. Four at a
+// time.
+func TestCredentialHelpersRunAtMostFourAtATime(t *testing.T) {
+	const helpers = 12
+
+	var mu sync.Mutex
+	inFlight, peak := 0, 0
+	atCap := make(chan struct{})
+	release := make(chan struct{})
+	var closeOnce sync.Once
+
+	var wg sync.WaitGroup
+	for i := 0; i < helpers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _ = withCommandSlot(context.Background(), func() (string, error) {
+				mu.Lock()
+				inFlight++
+				if inFlight > peak {
+					peak = inFlight
+				}
+				reached := inFlight == cap(commandSlots)
+				mu.Unlock()
+				if reached {
+					closeOnce.Do(func() { close(atCap) })
+				}
+				<-release // hold the slot until every waiter has had its chance
+				mu.Lock()
+				inFlight--
+				mu.Unlock()
+				return "", nil
+			})
+		}()
+	}
+
+	select {
+	case <-atCap:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the cap was never reached: helpers are not running concurrently at all")
+	}
+	// Everything that could run is running; anything above the cap is queued.
+	// Give the queued goroutines a moment to misbehave before letting go.
+	time.Sleep(50 * time.Millisecond)
+	close(release)
+	wg.Wait()
+
+	if peak > cap(commandSlots) {
+		t.Errorf("%d helpers ran at once, want at most %d", peak, cap(commandSlots))
+	}
+	if peak != cap(commandSlots) {
+		t.Errorf("only %d ran at once, want %d — the cap is throttling more than it should",
+			peak, cap(commandSlots))
+	}
+}
+
+// Waiting for a slot must not outlive the caller's context, or Ctrl-C during a
+// queue of helpers would hang for as long as the queue takes.
+func TestWaitingForASlotHonoursCancellation(t *testing.T) {
+	// Fill every slot.
+	for i := 0; i < cap(commandSlots); i++ {
+		commandSlots <- struct{}{}
+	}
+	defer func() {
+		for i := 0; i < cap(commandSlots); i++ {
+			<-commandSlots
+		}
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := withCommandSlot(ctx, func() (string, error) {
+		t.Error("f must not run: there was no slot and the context was already done")
+		return "", nil
+	}); !errors.Is(err, context.Canceled) {
+		t.Errorf("err = %v, want context.Canceled", err)
+	}
+}
 
 func TestParseSchemes(t *testing.T) {
 	cases := map[string]Source{
