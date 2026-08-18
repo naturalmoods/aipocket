@@ -215,6 +215,14 @@ Status choice is enforced by `registry_test.go`:
 `manifest.validate`): the manifest's variable name becomes a credential spec and is
 printed, so it is held to the same rule as user config.
 
+`auth.headers` carries static, non-secret headers a provider requires (Anthropic's
+`anthropic-version`). Literal values only — a secret there would be a second
+credential the redactor and `audit` know nothing about. Validation refuses a name
+outside `[A-Za-z0-9-]+`, a value that is not non-empty printable ASCII, and the
+four names the tool sets itself (`Authorization`, `Accept`, `User-Agent`, and
+`auth.header`). `fetch.Get` applies them *before* the credential, so even a bug in
+that validation cannot displace the key; `audit` prints them with their request.
+
 Every provider needs `console:` so a human can check by hand. Marking an inferred reading
 `official` moves a guess into the number users trust — that is the one change to reject
 outright.

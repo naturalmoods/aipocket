@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/url"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -62,9 +63,74 @@ type Auth struct {
 	Type string `yaml:"type"`
 	// Header is the header name for Type=="header".
 	Header string `yaml:"header"`
+	// Headers are static headers a provider requires on every request.
+	// Anthropic's /v1/models answers 400 without anthropic-version, which would
+	// make the tool report "key check failed" for a perfectly good key — being
+	// confidently wrong about the one thing it can check for a no-api provider.
+	//
+	// Literal values only, and never a secret. A header whose value is a
+	// credential is a second credential, and then secret.Redactor, `aipocket
+	// audit` and `aipocket providers` all have to know about it; that is its own
+	// design, not an extension of this field.
+	Headers map[string]string `yaml:"headers"`
 	// Env is the conventional environment variable, used as the default
 	// credential source when the config file says nothing.
 	Env string `yaml:"env"`
+}
+
+// headerNamePattern is what a manifest may name as a static header.
+// Deliberately narrower than the HTTP grammar: a data file must not be able to
+// put a colon, a CR or an LF into a request.
+var headerNamePattern = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
+
+// reservedHeaders are the ones fetch sets itself. A manifest naming one would
+// either be silently ignored (Accept, User-Agent — and a User-Agent a provider
+// could not attribute defeats the point of sending one) or would displace the
+// credential (Authorization). Both are worse than refusing to load.
+var reservedHeaders = map[string]bool{
+	"authorization": true,
+	"accept":        true,
+	"user-agent":    true,
+}
+
+func (a Auth) validateHeaders() error {
+	names := make([]string, 0, len(a.Headers))
+	for name := range a.Headers {
+		names = append(names, name)
+	}
+	// Sorted so that a manifest with two bad headers always reports the same one
+	// first; map order would make the error message depend on the run.
+	sort.Strings(names)
+
+	for _, name := range names {
+		switch {
+		case !headerNamePattern.MatchString(name):
+			return fmt.Errorf("auth.headers: %q is not a usable header name", name)
+		case reservedHeaders[strings.ToLower(name)]:
+			return fmt.Errorf("auth.headers: %s is set by aipocket itself and cannot be overridden here", name)
+		case a.Header != "" && strings.EqualFold(name, a.Header):
+			return fmt.Errorf("auth.headers: %s carries the credential and cannot be set here", name)
+		}
+		// The value is not quoted back on failure. It is not supposed to be a
+		// secret, but "not supposed to be" is exactly the case where echoing it
+		// would be the mistake, and the name alone identifies the line to fix.
+		if !printableASCII(a.Headers[name]) {
+			return fmt.Errorf("auth.headers: the value of %s must be non-empty printable ASCII", name)
+		}
+	}
+	return nil
+}
+
+func printableASCII(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < 0x20 || r > 0x7e {
+			return false
+		}
+	}
+	return true
 }
 
 // Endpoint is a single GET the tool may perform.
@@ -239,6 +305,9 @@ func (p *Provider) validate() error {
 	// default spec can never be one Parse would refuse.
 	if !secret.ValidEnvName(p.Auth.Env) {
 		return fmt.Errorf("auth.env %q must be an upper-case environment variable name", p.Auth.Env)
+	}
+	if err := p.Auth.validateHeaders(); err != nil {
+		return err
 	}
 	if p.Balance == nil && p.Verify == nil {
 		return fmt.Errorf("a provider needs either a balance or a verify endpoint")
