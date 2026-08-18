@@ -99,6 +99,30 @@ func loadErr(t *testing.T, path string) error {
 	return err
 }
 
+// A file that exists and says nothing is not a syntax error. `aipocket config
+// path` tells people where the config goes, and creating it — then pasting the
+// example's comment header, or nothing at all — is the obvious next move. It used
+// to be refused with exit code 2 and a message about a mis-pasted credential.
+//
+// A missing file was always fine; this is the same case, one byte later.
+func TestAnEmptyConfigIsNotAnError(t *testing.T) {
+	for what, body := range map[string]string{
+		"nothing at all":   "",
+		"only a newline":   "\n",
+		"only comments":    "# AIPocket configuration\n# key: forms\n",
+		"an empty mapping": "providers: {}\n",
+	} {
+		cfg, err := LoadConfig(write(t, body))
+		if err != nil {
+			t.Errorf("%s was refused: %v", what, err)
+			continue
+		}
+		if cfg == nil || cfg.Providers == nil {
+			t.Errorf("%s: Providers must be usable, got %+v", what, cfg)
+		}
+	}
+}
+
 func TestUnknownFieldIsRejected(t *testing.T) {
 	p := write(t, "providers:\n  groq:\n    keyy: env:GROQ_API_KEY\n")
 	if _, err := LoadConfig(p); err == nil {
