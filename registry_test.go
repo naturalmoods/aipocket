@@ -1,6 +1,7 @@
 package aipocket_test
 
 import (
+	"encoding/json"
 	"regexp"
 	"strings"
 	"testing"
@@ -87,6 +88,72 @@ func TestNoAPIClaimsCarryTheDateTheyWereChecked(t *testing.T) {
 	}
 }
 
+// Every provider that reports a balance, resolved through the manifest that
+// ships against the example response its own documentation publishes.
+//
+// A typo in a jpath is the likeliest mistake in one of these files, and without
+// this test it surfaces as "the provider answered but no balance field matched"
+// against a live account — at the exact moment someone needed the number. What
+// this does not claim is that the provider still returns that shape; the visible
+// error in core is for that. It claims the manifest agrees with the provider's
+// own documentation, which is the part a test can settle.
+func TestBalancePathsResolveTheProvidersDocumentedExample(t *testing.T) {
+	cases := map[string]struct {
+		body     string
+		want     float64
+		currency string
+	}{
+		"moonshot": {
+			body: `{"code":0,"data":{"available_balance":49.58894,
+			        "voucher_balance":46.58893,"cash_balance":3.00001},
+			        "scode":"0x0","status":true}`,
+			want: 49.58894, currency: "USD",
+		},
+		"siliconflow": {
+			// The figures are JSON strings in the documented example, which is
+			// exactly the kind of detail a manifest gets wrong silently.
+			body: `{"code":20000,"message":"OK","status":true,"data":{"id":"userid",
+			        "name":"username","isAdmin":false,"balance":"0.88",
+			        "status":"normal","chargeBalance":"88.00","totalBalance":"88.88"}}`,
+			want: 88.88, currency: "USD",
+		},
+	}
+
+	reg, err := aipocket.Registry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for id, c := range cases {
+		t.Run(id, func(t *testing.T) {
+			p, ok := reg.Get(id)
+			if !ok {
+				t.Fatalf("provider %q is not in the registry", id)
+			}
+			if p.Balance == nil {
+				t.Fatalf("%s reports no balance", id)
+			}
+			var doc any
+			if err := json.Unmarshal([]byte(c.body), &doc); err != nil {
+				t.Fatalf("the example response in this test is not valid JSON: %v", err)
+			}
+			for _, a := range p.Balance.Amounts {
+				v, ok := a.Resolve(doc)
+				if !ok {
+					continue
+				}
+				if v != c.want {
+					t.Errorf("read %v from the documented example, want %v", v, c.want)
+				}
+				if a.Currency != c.currency {
+					t.Errorf("currency = %s, want %s", a.Currency, c.currency)
+				}
+				return
+			}
+			t.Error("no amount in the manifest matched the provider's own documented example")
+		})
+	}
+}
+
 func TestKnownProvidersPresent(t *testing.T) {
 	reg, err := aipocket.Registry()
 	if err != nil {
@@ -95,6 +162,7 @@ func TestKnownProvidersPresent(t *testing.T) {
 	for _, id := range []string{
 		"openrouter", "deepseek", "groq", "neuralwatt", "entrim",
 		"openai", "anthropic", "gemini", "mistral", "xai", "together", "cerebras",
+		"moonshot", "siliconflow", "replicate", "deepinfra", "nebius",
 	} {
 		if _, ok := reg.Get(id); !ok {
 			t.Errorf("provider %q missing from registry", id)

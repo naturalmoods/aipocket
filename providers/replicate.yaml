@@ -1,0 +1,17 @@
+id: replicate
+name: Replicate
+status: no-api
+console: https://replicate.com/account/billing
+docs: https://replicate.com/docs/reference/http
+notes: >-
+  checked 2026-08-18: Replicate's documented account endpoint returns account
+  metadata only — type, username, name and github_url — and no balance; prepaid
+  credit is visible on the billing page. GET /v1/account is used as the key
+  check, which is the one thing it is good for.
+
+auth:
+  type: bearer
+  env: REPLICATE_API_TOKEN
+
+verify:
+  url: https://api.replicate.com/v1/account
