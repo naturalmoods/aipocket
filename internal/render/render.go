@@ -83,6 +83,12 @@ func Table(w io.Writer, rep core.Report, opt Options) {
 	for _, r := range rows {
 		w0, w1, w2 = max(w0, width(r[0])), max(w1, width(r[1])), max(w2, width(r[2]))
 	}
+	// The totals are wider than any single row as soon as several providers report
+	// — 130.16 USD against 18.42 USD — so the column is sized with them included,
+	// or the totals block hangs a character past the rule drawn above it.
+	for _, total := range []float64{rep.TotalVerified, rep.TotalInferred, rep.TotalManual} {
+		w1 = max(w1, width(fmt.Sprintf("%.2f USD", total)))
+	}
 
 	fmt.Fprintf(w, "\n  %s  %s  %s  %s\n",
 		padR(head[0], w0), padL(head[1], w1), padR(head[2], w2), head[3])
@@ -102,8 +108,11 @@ func Table(w io.Writer, rep core.Report, opt Options) {
 		// could carry its own age: "no balance API; key valid; user-maintained
 		// figure (2026-08-01, 17 days ago)" is 67, and the part that got cut was
 		// the age — the whole reason for saying it.
-		fmt.Fprintf(w, "  %s  %s  %s  %s\n",
-			padR(r[0], w0), padL(r[1], w1), state, truncate(r[3], 76))
+		// Trailing spaces are trimmed: a row whose note is empty otherwise ends in
+		// the column separator, which shows up in every diff of captured output and
+		// in any editor that highlights it.
+		fmt.Fprintln(w, strings.TrimRight(fmt.Sprintf("  %s  %s  %s  %s",
+			padR(r[0], w0), padL(r[1], w1), state, truncate(r[3], 76)), " "))
 	}
 
 	fmt.Fprintf(w, "  %s  %s  %s  %s\n",
@@ -135,17 +144,50 @@ func Table(w io.Writer, rep core.Report, opt Options) {
 			padR("manual", w0), padL(fmt.Sprintf("%.2f USD", rep.TotalManual), w1))
 	}
 	if len(rep.Excluded) > 0 {
-		fmt.Fprintf(w, "\n  outside the verified total: %s\n", strings.Join(rep.Excluded, ", "))
+		fmt.Fprintln(w)
+		writeWrapped(w, "outside the verified total: "+strings.Join(rep.Excluded, ", "))
 	}
 	if len(collapsed) > 0 {
 		subject := fmt.Sprintf("%d providers have", len(collapsed))
 		if len(collapsed) == 1 {
 			subject = "1 provider has"
 		}
-		fmt.Fprintf(w, "\n  %s no credential configured: %s  (--all)\n",
-			subject, strings.Join(collapsed, ", "))
+		fmt.Fprintln(w)
+		writeWrapped(w, subject+" no credential configured: "+
+			strings.Join(collapsed, ", ")+" (--all)")
 	}
 	fmt.Fprintln(w)
+}
+
+// writeWrapped prints one of the closing lines, broken at word boundaries so it
+// stays readable as the registry grows.
+//
+// Nineteen provider ids on a single line is over two hundred characters, and a
+// terminal breaks that wherever its width happens to fall — mid-id, so a list of
+// names stops reading as a list of names. Both closing lines go through here:
+// having one of them wrap and the other not would be a worse table than either
+// habit applied consistently.
+func writeWrapped(w io.Writer, s string) {
+	const limit = 76
+	line := ""
+	flush := func() {
+		if line != "" {
+			fmt.Fprintf(w, "  %s\n", line)
+			line = ""
+		}
+	}
+	for _, word := range strings.Fields(s) {
+		switch {
+		case line == "":
+			line = word
+		case width(line)+1+width(word) <= limit:
+			line += " " + word
+		default:
+			flush()
+			line = "  " + word // continuations sit under the first line's text
+		}
+	}
+	flush()
 }
 
 // verifiedReadings counts the results that contributed to Report.TotalVerified.
