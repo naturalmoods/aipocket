@@ -1,6 +1,7 @@
 package manifest
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -35,6 +36,62 @@ func TestLoadGood(t *testing.T) {
 	}
 	if p.Balance.Host() != "api.example.com" {
 		t.Errorf("host = %q", p.Balance.Host())
+	}
+}
+
+// Some providers report money in fixed-point units — novita in 1/10000 USD — and
+// a manifest that could not convert them would report a balance ten thousand times
+// too large. money.Plausible is no defence there: a million dollars is a plausible
+// amount of money.
+func TestScaleConvertsTheProvidersUnitAndIsBounded(t *testing.T) {
+	withAmount := func(amount string) string {
+		return strings.Replace(good,
+			"- {total: $.total, used: $.used, currency: USD}", amount, 1)
+	}
+	resolve := func(t *testing.T, y, doc string) (float64, bool) {
+		t.Helper()
+		reg, err := load(t, y)
+		if err != nil {
+			t.Fatalf("manifest was refused: %v", err)
+		}
+		p, _ := reg.Get("example")
+		var v any
+		if err := json.Unmarshal([]byte(doc), &v); err != nil {
+			t.Fatal(err)
+		}
+		return p.Balance.Amounts[0].Resolve(v)
+	}
+
+	got, ok := resolve(t, withAmount(`- {path: $.b, scale: 0.0001, currency: USD}`), `{"b":1000000}`)
+	if !ok || got != 100 {
+		t.Errorf("scaled reading = %v (ok=%v), want 100", got, ok)
+	}
+
+	// The same arithmetic has to reach a total-minus-used pair, since a provider
+	// reporting lifetime figures in fixed-point units reports both that way.
+	got, ok = resolve(t, withAmount(`- {total: $.t, used: $.u, scale: 0.01, currency: USD}`), `{"t":5000,"u":1500}`)
+	if !ok || got != 35 {
+		t.Errorf("scaled difference = %v (ok=%v), want 35", got, ok)
+	}
+
+	// The check runs on the scaled figure, because that is the one that would be
+	// reported. 1e11 units at 1000 each is not money.
+	if _, ok := resolve(t, withAmount(`- {path: $.b, scale: 1000, currency: USD}`), `{"b":100000000000}`); ok {
+		t.Error("a scaled figure outside the plausible range must not resolve")
+	}
+
+	refused := map[string]string{
+		// Zero is the dangerous one: it would report every account as empty, and
+		// a pointer field is what makes it distinguishable from no scale at all.
+		"zero":     `- {path: $.b, scale: 0, currency: USD}`,
+		"negative": `- {path: $.b, scale: -0.0001, currency: USD}`,
+		"nan":      `- {path: $.b, scale: .nan, currency: USD}`,
+		"infinite": `- {path: $.b, scale: .inf, currency: USD}`,
+	}
+	for what, amount := range refused {
+		if _, err := load(t, withAmount(amount)); err == nil {
+			t.Errorf("scale %s must be refused", what)
+		}
 	}
 }
 

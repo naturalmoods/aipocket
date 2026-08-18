@@ -122,6 +122,20 @@ amounts:
 Non-USD balances are reported but excluded from the verified total. AIPocket does
 not convert currencies; it has no business guessing a rate.
 
+A provider that reports fixed-point units needs `scale:` — Novita's figures are
+integers in 1/10000 USD:
+
+```yaml
+amounts:
+  - {path: $.availableBalance, scale: 0.0001, currency: USD}
+```
+
+It must be finite and greater than zero, and it is checked at load time. Zero is
+the one that matters: it would report every account as empty, which is the most
+dangerous wrong answer this tool can give. Note that `money.Plausible` is no
+substitute for the scale — a million dollars is a perfectly plausible amount of
+money, so an unconverted figure sails straight through it and into the total.
+
 ### JSONPath subset
 
 `$.a.b`, `$.a[0]`, `$.a[?field=value]`, and combinations. Anything else fails at

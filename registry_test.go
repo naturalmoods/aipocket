@@ -122,6 +122,14 @@ func TestBalancePathsResolveTheProvidersDocumentedExample(t *testing.T) {
 			        "currency":"USD"}}`,
 			want: 24.5, currency: "USD",
 		},
+		"novita": {
+			// Integers in 1/10000 USD. Without the manifest's scale this resolves
+			// to 1000000, which money.Plausible would happily accept.
+			body: `{"availableBalance":"1000000","cashBalance":"800000",
+			        "creditLimit":"200000","pendingCharges":"0",
+			        "outstandingInvoices":"0"}`,
+			want: 100, currency: "USD",
+		},
 	}
 
 	reg, err := aipocket.Registry()
@@ -167,7 +175,7 @@ func TestKnownProvidersPresent(t *testing.T) {
 	for _, id := range []string{
 		"openrouter", "deepseek", "groq", "neuralwatt", "entrim",
 		"openai", "anthropic", "gemini", "mistral", "xai", "together", "cerebras",
-		"moonshot", "siliconflow", "replicate", "deepinfra", "nebius", "fal",
+		"moonshot", "siliconflow", "replicate", "deepinfra", "nebius", "fal", "novita",
 	} {
 		if _, ok := reg.Get(id); !ok {
 			t.Errorf("provider %q missing from registry", id)
