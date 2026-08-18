@@ -1,0 +1,23 @@
+id: moonshot
+name: Moonshot AI (Kimi)
+status: official
+console: https://platform.kimi.ai/console/account
+docs: https://platform.kimi.ai/docs/api/balance
+notes: >-
+  The response carries three figures; available_balance is the spendable one —
+  the documentation defines it as cash plus voucher balance, and states the unit
+  is USD. Only that one is read: falling back to cash_balance would silently
+  report a different quantity, and a response that no longer matches should be a
+  visible error instead. Moonshot's documentation and console moved to
+  platform.kimi.ai, while api.moonshot.ai remains the API host its own examples
+  use.
+
+auth:
+  type: bearer
+  env: MOONSHOT_API_KEY
+
+balance:
+  url: https://api.moonshot.ai/v1/users/me/balance
+  amounts:
+    - path: $.data.available_balance
+      currency: USD

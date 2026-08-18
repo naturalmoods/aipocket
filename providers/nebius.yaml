@@ -1,0 +1,17 @@
+id: nebius
+name: Nebius Token Factory
+status: no-api
+console: https://tokenfactory.nebius.com/
+docs: https://docs.tokenfactory.nebius.com/api-reference/models/list-models
+notes: >-
+  checked 2026-08-18: the documentation index lists billing and consumption
+  pages but no endpoint that returns a balance; spend lives in the console. This
+  was Nebius AI Studio — studio.nebius.com now redirects to
+  tokenfactory.nebius.com, and the API host moved with it.
+
+auth:
+  type: bearer
+  env: NEBIUS_API_KEY
+
+verify:
+  url: https://api.tokenfactory.nebius.com/v1/models

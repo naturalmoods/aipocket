@@ -1,0 +1,19 @@
+id: deepinfra
+name: DeepInfra
+status: no-api
+console: https://deepinfra.com/dash/billing
+docs: https://docs.deepinfra.com/api-reference/billing/get-config
+notes: >-
+  checked 2026-08-18: DeepInfra's billing API covers invoices, usage, spending
+  limits and top-ups, but nothing that returns a remaining balance. The key check
+  uses GET /payment/config, which returns the spending limit rather than a
+  balance. It is chosen because it requires the credential: the models list is
+  documented as needing no authentication, so verifying against it would report
+  "key valid" for a key that had been revoked.
+
+auth:
+  type: bearer
+  env: DEEPINFRA_API_KEY
+
+verify:
+  url: https://api.deepinfra.com/payment/config

@@ -1,0 +1,27 @@
+id: siliconflow
+name: SiliconFlow
+status: undocumented
+console: https://cloud.siliconflow.com/account/billing
+docs: https://docs.siliconflow.com/cn/api-reference/userinfo/get-user-info
+notes: >-
+  checked 2026-08-18: the endpoint and the response fields are documented, with
+  an example showing balance, chargeBalance and totalBalance as JSON strings —
+  but the documentation never says which currency they are in. USD is declared
+  here because api.siliconflow.com is the international platform and it prices in
+  USD, while the .cn platform prices in CNY. That is an inference rather than a
+  documented fact, so the status stays undocumented and the figure stays out of
+  the verified total. Compare it once against the console; if the currency turns
+  out to be documented somewhere, say so in an issue and this becomes official.
+
+auth:
+  type: bearer
+  env: SILICONFLOW_API_KEY
+
+balance:
+  url: https://api.siliconflow.com/v1/user/info
+  amounts:
+    # totalBalance is the documented sum of the gifted and the purchased balance.
+    - path: $.data.totalBalance
+      currency: USD
+    - path: $.data.balance
+      currency: USD
