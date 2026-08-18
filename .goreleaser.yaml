@@ -15,8 +15,15 @@ builds:
     binary: aipocket
     env: [CGO_ENABLED=0]
     flags: [-trimpath]
+    # .Tag, not .Version: goreleaser's .Version is the tag with the leading v
+    # stripped, so v1.1.0 produced a binary that called itself "1.1.0" while a
+    # `go install` build of the same commit called itself "v1.1.0" — Go's module
+    # version always carries the v. Two spellings of one release is a small thing
+    # until someone greps a User-Agent for the version they were told to look for,
+    # or compares `aipocket version` against a tag name in a script. The archive
+    # names keep .Version, because their download URLs are already public.
     ldflags:
-      - -s -w -X main.version={{.Version}} -X github.com/naturalmoods/aipocket/internal/fetch.Version={{.Version}}
+      - -s -w -X main.version={{.Tag}} -X github.com/naturalmoods/aipocket/internal/fetch.Version={{.Tag}}
     goos: [linux, darwin, windows, freebsd]
     goarch: [amd64, arm64]
     ignore:
