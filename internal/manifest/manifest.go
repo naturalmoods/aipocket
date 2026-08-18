@@ -63,6 +63,11 @@ type Auth struct {
 	Type string `yaml:"type"`
 	// Header is the header name for Type=="header".
 	Header string `yaml:"header"`
+	// Scheme is the word before the credential in an Authorization header, for
+	// Type=="bearer". Empty means "Bearer", which is what nearly every provider
+	// wants; fal documents `Authorization: Key <key>`, and a scheme is the whole
+	// difference between reading its balance and not being able to.
+	Scheme string `yaml:"scheme"`
 	// Headers are static headers a provider requires on every request.
 	// Anthropic's /v1/models answers 400 without anthropic-version, which would
 	// make the tool report "key check failed" for a perfectly good key — being
@@ -76,6 +81,20 @@ type Auth struct {
 	// Env is the conventional environment variable, used as the default
 	// credential source when the config file says nothing.
 	Env string `yaml:"env"`
+}
+
+// schemePattern is what may stand before a credential in an Authorization
+// header: one token, nothing that could end the header line and start another.
+// This value is written directly next to a key, so the rule is mechanical rather
+// than left to a reviewer noticing.
+var schemePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9-]*$`)
+
+// AuthScheme is the word to write before the credential, defaulting to Bearer.
+func (a Auth) AuthScheme() string {
+	if a.Scheme == "" {
+		return "Bearer"
+	}
+	return a.Scheme
 }
 
 // headerNamePattern is what a manifest may name as a static header.
@@ -289,9 +308,18 @@ func (p *Provider) validate() error {
 	}
 	switch p.Auth.Type {
 	case "bearer":
+		if p.Auth.Scheme != "" && !schemePattern.MatchString(p.Auth.Scheme) {
+			return fmt.Errorf("auth.scheme %q must be a single token of letters, digits and hyphens", p.Auth.Scheme)
+		}
 	case "header":
 		if p.Auth.Header == "" {
 			return fmt.Errorf("auth.header is required when auth.type is header")
+		}
+		// A scheme has no meaning here — the credential is written raw into the
+		// named header — and a setting that silently does nothing is the failure
+		// mode this format refuses everywhere else.
+		if p.Auth.Scheme != "" {
+			return fmt.Errorf("auth.scheme applies to auth.type bearer, not header")
 		}
 	default:
 		return fmt.Errorf("auth.type must be bearer or header")

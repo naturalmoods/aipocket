@@ -61,6 +61,39 @@ func TestStaticHeadersTravelWithTheRequest(t *testing.T) {
 	}
 }
 
+// Not every provider spells the scheme "Bearer": fal documents
+// `Authorization: Key <key>`, and without a scheme the tool cannot read its
+// balance at all.
+func TestTheAuthorizationSchemeCanBeSetAndDefaultsToBearer(t *testing.T) {
+	var seen string
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r.Header.Get("Authorization")
+		fmt.Fprint(w, `{"balance":1}`)
+	}))
+	defer ts.Close()
+
+	ep, auth := endpoint(t, ts.URL)
+	c := NewWithTransport(ts.Client().Transport, 5*time.Second)
+
+	auth.Scheme = "Key"
+	if _, err := c.Get(context.Background(), ep, auth, "sk-test-key-value"); err != nil {
+		t.Fatal(err)
+	}
+	if seen != "Key sk-test-key-value" {
+		t.Errorf("Authorization = %q, want the manifest's scheme", seen)
+	}
+
+	// The default is the compatibility half: sixteen manifests say nothing about
+	// a scheme and must keep sending Bearer.
+	auth.Scheme = ""
+	if _, err := c.Get(context.Background(), ep, auth, "sk-test-key-value"); err != nil {
+		t.Fatal(err)
+	}
+	if seen != "Bearer sk-test-key-value" {
+		t.Errorf("Authorization = %q, want Bearer by default", seen)
+	}
+}
+
 // Defence in depth. Manifest validation refuses a static header that would
 // displace the credential, so reaching this state means that check was bypassed
 // or broken — which is exactly when the ordering inside Get has to hold. The key

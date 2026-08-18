@@ -224,6 +224,11 @@ Status choice is enforced by `registry_test.go`:
 `manifest.validate`): the manifest's variable name becomes a credential spec and is
 printed, so it is held to the same rule as user config.
 
+`auth.scheme` is the word before the credential in an `Authorization` header, `Bearer`
+unless a manifest says otherwise (fal documents `Key`). Validated as a single
+`[A-Za-z][A-Za-z0-9-]*` token, and refused outright with `type: header`, where the
+credential is written raw and a scheme would silently mean nothing.
+
 `auth.headers` carries static, non-secret headers a provider requires (Anthropic's
 `anthropic-version`). Literal values only — a secret there would be a second
 credential the redactor and `audit` know nothing about. Validation refuses a name

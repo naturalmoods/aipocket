@@ -62,6 +62,23 @@ whose figures enter the **verified total**. Mislabelling one moves a guess into
 the number users trust, which is the exact failure this project exists to
 prevent.
 
+### The Authorization scheme
+
+Most providers want `Authorization: Bearer <key>`, which is the default. fal wants
+`Authorization: Key <key>`:
+
+```yaml
+auth:
+  type: bearer
+  scheme: Key        # optional; Bearer when omitted
+  env: FAL_KEY
+```
+
+Checked at load time: one token of letters, digits and hyphens, so a data file
+cannot end the header line and start another. `scheme` with `type: header` is a
+load error rather than a silent no-op — there the credential is written raw into
+the header you name, and a scheme would mean nothing.
+
 ### Static headers
 
 Some providers require a header on every request that has nothing to do with the
