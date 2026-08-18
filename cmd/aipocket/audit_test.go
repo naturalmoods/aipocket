@@ -73,6 +73,48 @@ balance:
 	}
 }
 
+// Every probe path is one authenticated request the user can trigger, so audit
+// has to account for all of them — and a duplicate would be a wasted request sent
+// twice, while a path missing its leading slash would quietly point somewhere else
+// entirely.
+func TestEveryProbePathIsListedOnceAndRooted(t *testing.T) {
+	seen := map[string]bool{}
+	for _, p := range probePaths {
+		if !strings.HasPrefix(p, "/") {
+			t.Errorf("probe path %q is not rooted", p)
+		}
+		if seen[p] {
+			t.Errorf("probe path %q is listed twice: the key would be sent to it twice", p)
+		}
+		seen[p] = true
+	}
+
+	y := `
+id: acme
+name: Acme
+status: official
+console: https://acme.test/billing
+docs: https://acme.test/docs
+auth: {type: bearer, env: ACME_API_KEY}
+balance:
+  url: https://api.acme.test/v1/credits
+  amounts: [{path: $.balance, currency: USD}]
+`
+	reg, err := manifest.Load(fstest.MapFS{"p/acme.yaml": &fstest.MapFile{Data: []byte(y)}}, "p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := &core.Config{Providers: map[string]core.ProviderConfig{}}
+
+	out := captureStdout(t, func() { audit(reg, cfg, false) })
+	for _, p := range probePaths {
+		if !strings.Contains(out, "https://api.acme.test"+p) {
+			t.Errorf("audit does not name the probe request for %q — the footprint is\n"+
+				"incomplete, which is the one promise audit makes:\n%s", p, out)
+		}
+	}
+}
+
 // captureStdout collects what f prints. audit writes to os.Stdout directly,
 // which is right for a command and means a test has to swap it.
 func captureStdout(t *testing.T, f func()) string {

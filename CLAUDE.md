@@ -159,7 +159,7 @@ exists for tests and proxies but still applies the redirect and timeout policy.
 Config overrides (`balance_url`) are reflected there, disabled providers omitted — and
 because audit omits them, `Checker.Selected` *and* `probe` refuse an explicitly named
 disabled provider rather than quietly contacting it. Any new network call must appear in
-audit. So must the requests only a subcommand makes: the nine `probe` paths are listed
+audit. So must the requests only a subcommand makes: the `probe` paths are listed
 under their own heading (`probe --dry-run` prints them and sends nothing), an
 `HTTPS_PROXY` from the environment is named per request via `fetch.ProxyFor` because it
 becomes another host that receives the key, and the closing paragraph says plainly that a
