@@ -1,14 +1,126 @@
 package render
 
 import (
+	"encoding/json"
+	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/naturalmoods/aipocket/internal/core"
 	"github.com/naturalmoods/aipocket/internal/manifest"
 )
 
 func balance(f float64) *float64 { return &f }
+
+func spendable(b bool) *bool { return &b }
+
+// keysOf reads the field names actually present in one JSON object, which is
+// what a consumer of --json sees — as opposed to what the Go struct declares.
+func keysOf(t *testing.T, raw json.RawMessage) []string {
+	t.Helper()
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		t.Fatalf("not a JSON object: %v", err)
+	}
+	out := make([]string, 0, len(obj))
+	for k := range obj {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func assertKeys(t *testing.T, what string, got, want []string) {
+	t.Helper()
+	sort.Strings(want)
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Errorf("the %s field names changed\n have: %s\n want: %s",
+			what, strings.Join(got, " "), strings.Join(want, " "))
+	}
+}
+
+// From v1.0.0 the --json field names and their meaning do not change inside the
+// major version. Nothing enforced that: renaming total_verified_usd passed the
+// whole suite and CI stayed green, which is the same objection as a dependency
+// gate that only reports.
+//
+// A failure here is not automatically a bug. The compatibility statement allows
+// *adding* fields, so the honest workflow is to update the literals below in the
+// same commit — deliberately, in a diff a reviewer can see. That visible step is
+// the entire difference between a promise and a habit.
+func TestTheJSONFieldNamesAreAContract(t *testing.T) {
+	everything := core.Report{
+		GeneratedAt: time.Unix(0, 0).UTC(),
+		Results: []core.Result{{
+			ID: "acme", Name: "Acme", State: core.StateOK,
+			Balance: balance(37.65), Currency: "USD",
+			Confidence:      manifest.StatusOfficial,
+			Detail:          "topped up 50.00 / spent 12.35",
+			Note:            "a manifest caveat",
+			Error:           "HTTP 402 Payment Required",
+			ProviderMessage: "insufficient balance",
+			KeySource:       "env ACME_KEY",
+			Console:         "https://acme.test/billing",
+			Spendable:       spendable(true),
+		}},
+		TotalVerified: 37.65, TotalInferred: 1, TotalManual: 2,
+		Excluded: []string{"acme (user-maintained)"},
+	}
+
+	var b strings.Builder
+	if err := JSON(&b, everything); err != nil {
+		t.Fatal(err)
+	}
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(b.String()), &top); err != nil {
+		t.Fatalf("--json output does not parse: %v", err)
+	}
+	assertKeys(t, "report", keysOf(t, []byte(b.String())), []string{
+		"generated_at", "providers", "total_verified_usd", "total_inferred_usd",
+		"total_manual_usd", "excluded_from_verified_total",
+	})
+
+	var results []json.RawMessage
+	if err := json.Unmarshal(top["providers"], &results); err != nil {
+		t.Fatal(err)
+	}
+	assertKeys(t, "provider", keysOf(t, results[0]), []string{
+		"id", "name", "state", "balance", "currency", "confidence", "detail",
+		"note", "error", "provider_message", "key_source", "console", "spendable",
+	})
+
+	// The omitempty set is part of the contract too. A provider with no balance
+	// omits the key instead of sending null, so a consumer testing for presence
+	// keeps working — and the three fields that are never omitted are the three a
+	// consumer may always read: which provider, what happened, how much the tool
+	// can promise about it. total_verified_usd is unconditional for the same
+	// reason: 0 is an answer, a missing key is not.
+	minimal := core.Report{
+		GeneratedAt: time.Unix(0, 0).UTC(),
+		Results: []core.Result{{
+			ID: "acme", Name: "Acme", State: core.StateUnconfigured,
+			Confidence: manifest.StatusOfficial,
+		}},
+	}
+	var mb strings.Builder
+	if err := JSON(&mb, minimal); err != nil {
+		t.Fatal(err)
+	}
+	assertKeys(t, "minimal report", keysOf(t, []byte(mb.String())),
+		[]string{"generated_at", "providers", "total_verified_usd"})
+
+	var minTop map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(mb.String()), &minTop); err != nil {
+		t.Fatal(err)
+	}
+	var minResults []json.RawMessage
+	if err := json.Unmarshal(minTop["providers"], &minResults); err != nil {
+		t.Fatal(err)
+	}
+	assertKeys(t, "minimal provider", keysOf(t, minResults[0]),
+		[]string{"id", "name", "state", "confidence"})
+}
 
 // The table is the terminal boundary. Whatever reaches it — a provider's error
 // body, a provider name, a note — is printed, so the escape stripping happens
