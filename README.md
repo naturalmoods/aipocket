@@ -65,7 +65,7 @@ should be: each becomes a visible error, never a green `0.00`.
 
 Twenty, and the honest summary of the state of LLM billing APIs is the
 `confidence` column: **five** providers publish a balance endpoint you can trust,
-three answer one whose response shape had to be inferred, and twelve publish
+two answer one whose response shape had to be inferred, and thirteen publish
 nothing at all — for those AIPocket checks the key and reports whatever figure you
 choose to keep.
 
@@ -75,7 +75,7 @@ choose to keep.
 | Cerebras | `cerebras` | no-api | key check only |
 | DeepInfra | `deepinfra` | no-api | key check only |
 | DeepSeek | `deepseek` | official | balance |
-| Entrim.ai | `entrim` | undocumented | balance (inferred) |
+| Entrim.ai | `entrim` | no-api | key check only |
 | fal.ai | `fal` | official | balance |
 | Google Gemini | `gemini` | no-api | key check only |
 | Groq | `groq` | no-api | key check only |
