@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -170,7 +171,13 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	dec := yaml.NewDecoder(strings.NewReader(string(b)))
 	dec.KnownFields(true)
-	if err := dec.Decode(cfg); err != nil {
+	// An empty document is not a syntax error. yaml.v3 signals "no document here"
+	// with io.EOF, which a file that is empty, holds only a newline, or holds only
+	// comments all produce — and `aipocket config path` invites exactly that file
+	// into existence, so the obvious first move was being refused with exit code 2
+	// and a message about a mis-pasted credential. A missing file was always fine;
+	// this is the same case, one byte later.
+	if err := dec.Decode(cfg); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("%s: %s", path, describeYAMLError(err))
 	}
 	if cfg.Providers == nil {
