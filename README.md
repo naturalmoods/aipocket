@@ -120,6 +120,7 @@ aipocket providers              # what's known, and where each key is read from
 aipocket audit                  # every host that would be contacted, before you run anything
 aipocket probe entrim           # look for an undocumented balance endpoint
 aipocket probe entrim --dry-run # ...or just list the requests it would make
+aipocket config add             # pick a provider, say where its key comes from
 ```
 
 With no configuration at all, AIPocket reads each provider's conventional
@@ -148,6 +149,13 @@ providers:
     manual: 25.00        # no balance API; reported separately, never in the total
     as_of: 2026-08-01    # optional: when you read it. The row shows the age.
 ```
+
+`aipocket config add` writes that block for you to paste: it lists the providers
+this build knows, asks which of the three forms the key comes from, and checks the
+answer with the same rule the config loader applies. It prints — it does not edit
+the file, and it never asks for the key. Re-marshalling the YAML would drop the
+comments that explain each entry, and a subcommand that took a key would put it in
+the shell history on its way into the one file that promises to hold none.
 
 Shelling out to whatever secret manager the machine already has is both more
 portable and more secure than bundling a keyring library. Concretely: under WSL

@@ -14,6 +14,9 @@
 #
 # Nothing here is required. With no config at all, every provider reads its
 # conventional variable — `aipocket providers` lists them.
+#
+# `aipocket config add` asks which provider and which of the three forms above,
+# then prints an entry to paste here. It writes nothing and never asks for a key.
 
 providers:
   # A provider that publishes a balance API: nothing to configure but the key.
