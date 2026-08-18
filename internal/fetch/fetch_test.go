@@ -35,6 +35,59 @@ balance:
 	return p.Balance, p.Auth
 }
 
+// A provider that requires a static header gets it, and the credential still
+// travels in its own.
+func TestStaticHeadersTravelWithTheRequest(t *testing.T) {
+	var sawStatic, sawCredential string
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sawStatic = r.Header.Get("acme-version")
+		sawCredential = r.Header.Get("Authorization")
+		fmt.Fprint(w, `{"balance":1}`)
+	}))
+	defer ts.Close()
+
+	ep, auth := endpoint(t, ts.URL)
+	auth.Headers = map[string]string{"acme-version": "2026-01-01"}
+
+	c := NewWithTransport(ts.Client().Transport, 5*time.Second)
+	if _, err := c.Get(context.Background(), ep, auth, "sk-test-key-value"); err != nil {
+		t.Fatal(err)
+	}
+	if sawStatic != "2026-01-01" {
+		t.Errorf("static header not sent: %q", sawStatic)
+	}
+	if sawCredential != "Bearer sk-test-key-value" {
+		t.Errorf("credential header = %q", sawCredential)
+	}
+}
+
+// Defence in depth. Manifest validation refuses a static header that would
+// displace the credential, so reaching this state means that check was bypassed
+// or broken — which is exactly when the ordering inside Get has to hold. The key
+// must still be the thing sent, never a literal from a data file.
+func TestAStaticHeaderCannotDisplaceTheCredential(t *testing.T) {
+	var sawKey string
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sawKey = r.Header.Get("x-api-key")
+		fmt.Fprint(w, `{"balance":1}`)
+	}))
+	defer ts.Close()
+
+	ep, _ := endpoint(t, ts.URL)
+	auth := manifest.Auth{
+		Type: "header", Header: "x-api-key", Env: "T_KEY",
+		Headers: map[string]string{"x-api-key": "a-literal-from-a-manifest"},
+	}
+
+	c := NewWithTransport(ts.Client().Transport, 5*time.Second)
+	if _, err := c.Get(context.Background(), ep, auth, "sk-test-key-value"); err != nil {
+		t.Fatal(err)
+	}
+	if sawKey != "sk-test-key-value" {
+		t.Errorf("the credential header carried %q instead of the key", sawKey)
+	}
+}
+
 // A 3xx from a billing endpoint is an instruction about where to send a
 // credential next. The tool must not take it.
 func TestRedirectsAreRefused(t *testing.T) {

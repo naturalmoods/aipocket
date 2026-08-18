@@ -230,6 +230,14 @@ func (c *Client) Get(ctx context.Context, ep *manifest.Endpoint, auth manifest.A
 	if err != nil {
 		return nil, err
 	}
+	// A manifest's static headers go on first, and the credential second, so the
+	// credential header always wins. Manifest validation already refuses a static
+	// header that would displace it — this ordering means a bug in that check
+	// still cannot stop the key from being sent correctly, or send a manifest's
+	// literal in its place.
+	for name, value := range auth.Headers {
+		req.Header.Set(name, value)
+	}
 	switch auth.Type {
 	case "bearer":
 		req.Header.Set("Authorization", "Bearer "+key)

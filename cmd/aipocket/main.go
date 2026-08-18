@@ -326,7 +326,14 @@ func audit(reg *manifest.Registry, cfg *core.Config, asJSON bool) int {
 			if proxy != "" {
 				proxies[proxy] = true
 			}
-			return auditEntry{p.ID, host, target, purpose, src, overridden, proxy}
+			// Static headers are part of what gets sent, so audit names them.
+			// They are not secrets — manifest validation refuses a value that is
+			// not printable ASCII, and refuses the credential header outright.
+			return auditEntry{
+				Provider: p.ID, Host: host, URL: target, Purpose: purpose,
+				KeySource: src, Overridden: overridden, Proxy: proxy,
+				Headers: p.Auth.Headers,
+			}
 		}
 
 		add := func(ep *manifest.Endpoint, purpose string) {
@@ -378,6 +385,9 @@ func audit(reg *manifest.Registry, cfg *core.Config, asJSON bool) int {
 		}
 		fmt.Printf("    GET %s%s\n        provider=%s  purpose=%s  key from %s\n",
 			e.URL, note, e.Provider, e.Purpose, e.KeySource)
+		if len(e.Headers) > 0 {
+			fmt.Printf("        also sends: %s\n", headerList(e.Headers))
+		}
 	}
 
 	fmt.Printf("\n  hosts contacted: %s\n", strings.Join(sortedKeys(hosts), ", "))
@@ -420,6 +430,24 @@ type auditEntry struct {
 	KeySource  string `json:"key_source"`
 	Overridden bool   `json:"overridden_in_config"`
 	Proxy      string `json:"proxy,omitempty"`
+	// Headers are the manifest's static headers, sent with this request. Never a
+	// credential: manifest validation refuses the auth header here.
+	Headers map[string]string `json:"headers,omitempty"`
+}
+
+// headerList renders static headers for display, sorted so the output does not
+// change between runs.
+func headerList(h map[string]string) string {
+	names := make([]string, 0, len(h))
+	for name := range h {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	parts := make([]string, 0, len(names))
+	for _, name := range names {
+		parts = append(parts, name+": "+h[name])
+	}
+	return strings.Join(parts, ", ")
 }
 
 func sortedKeys(m map[string]bool) []string {

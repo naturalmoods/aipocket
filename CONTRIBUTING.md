@@ -62,6 +62,31 @@ whose figures enter the **verified total**. Mislabelling one moves a guess into
 the number users trust, which is the exact failure this project exists to
 prevent.
 
+### Static headers
+
+Some providers require a header on every request that has nothing to do with the
+credential — Anthropic's `/v1/models` answers `400` without `anthropic-version`,
+so without it the row would report "key check failed" for a perfectly good key:
+
+```yaml
+auth:
+  type: header
+  header: x-api-key
+  headers: {anthropic-version: "2023-06-01"}
+  env: ANTHROPIC_API_KEY
+```
+
+Literal values only, and **never a credential**. A header whose value is a secret
+is a second credential, and the redactor, `aipocket audit` and `aipocket
+providers` would all have to learn about it; open an issue instead of stretching
+this field.
+
+Checked at load time: names match `[A-Za-z0-9-]+`, values are non-empty printable
+ASCII, and you cannot set `Authorization`, `Accept`, `User-Agent` or whatever
+`auth.header` names — the first would displace the key, the rest are aipocket's
+own and would be silently ignored. `aipocket audit` prints these headers with the
+request they belong to, because they are part of what gets sent.
+
 ### The amounts list
 
 Candidates, tried in order; the first that resolves is reported.
