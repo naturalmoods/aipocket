@@ -459,12 +459,22 @@ func sortedKeys(m map[string]bool) []string {
 	return out
 }
 
-// probeePaths are the conventional locations for a balance endpoint. They are
+// probePaths are the conventional locations for a balance endpoint. They are
 // only ever tried against a host already named in that provider's manifest, so
 // probing cannot be pointed at an arbitrary server.
+//
+// Every entry costs one authenticated request per probe run and one line per
+// provider in `aipocket audit`, whose value is that a person can actually read it
+// before trusting the tool with a key. So the list holds paths seen in the wild,
+// not paths that sound plausible — and not paths seen in the wild that could only
+// ever match the one provider they came from: /openapi/v1/billing/balance/detail
+// (novita) and /payment/config (deepinfra) are real, documented, and deliberately
+// absent, because both are already in a manifest and neither generalises.
 var probePaths = []string{
 	"/v1/credits", "/v1/balance", "/v1/quota", "/v1/account", "/v1/usage",
 	"/v1/user/balance", "/user/balance", "/v1/billing/balance", "/v1/me",
+	// Found while adding providers: moonshot, siliconflow and fal respectively.
+	"/v1/users/me/balance", "/v1/user/info", "/v1/account/billing",
 }
 
 // probeHost is the single host a provider may be probed against: one already
