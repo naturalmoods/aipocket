@@ -24,6 +24,39 @@ func TestEmbeddedRegistryIsValid(t *testing.T) {
 	}
 }
 
+func TestNousResearchRequiresManualBalanceAndChecksTheAPIKey(t *testing.T) {
+	reg, err := aipocket.Registry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, ok := reg.Get("nous")
+	if !ok {
+		t.Fatal("nous is not in the registry")
+	}
+	if p.Status != manifest.StatusNoAPI || p.Balance != nil || p.Verify == nil ||
+		p.Verify.URL != "https://inference-api.nousresearch.com/v1/models" ||
+		p.Auth.Type != "bearer" || p.Auth.Env != "NOUS_API_KEY" {
+		t.Fatalf("Nous Research must verify its key with GET /v1/models, not invent a balance API: %+v", p)
+	}
+}
+
+func TestNeuralwattConsoleOpensTheCreditDashboard(t *testing.T) {
+	reg, err := aipocket.Registry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, ok := reg.Get("neuralwatt")
+	if !ok {
+		t.Fatal("neuralwatt is not in the registry")
+	}
+	if p.Console != "https://portal.neuralwatt.com/dashboard" {
+		t.Fatalf("Neuralwatt console = %q, want credit dashboard", p.Console)
+	}
+	if p.Status != manifest.StatusUndocumented {
+		t.Fatal("a working dashboard does not document the API response field")
+	}
+}
+
 func TestEveryProviderIsHonestAboutItself(t *testing.T) {
 	reg, err := aipocket.Registry()
 	if err != nil {

@@ -1,0 +1,20 @@
+id: nous
+name: Nous Research
+status: no-api
+console: https://portal.nousresearch.com/
+docs: https://portal.nousresearch.com/api-docs
+notes: >-
+  checked 2026-09-26: the official Hermes Agent client verifies an inference
+  API key with GET /v1/models and a Bearer token. No API-key-authenticated
+  balance endpoint or documented balance field could be established from the
+  public API docs (the portal returned HTTP 429 during review). The client's
+  portal billing endpoint uses a separate Portal OAuth token, not the inference
+  API key. AIPocket checks the key and reports a manually maintained USD
+  figure if you provide one; it does not estimate credits from token usage.
+
+auth:
+  type: bearer
+  env: NOUS_API_KEY
+
+verify:
+  url: https://inference-api.nousresearch.com/v1/models

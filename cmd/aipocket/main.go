@@ -12,6 +12,7 @@ import (
 	neturl "net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sort"
 	"strings"
 	"syscall"
@@ -43,9 +44,11 @@ const usage = `aipocket — remaining prepaid credit at your LLM API providers
 usage:
   aipocket [flags] [provider...]      check balances (default)
   aipocket providers                  list known providers
-  aipocket audit                      show every host that would be contacted
+  aipocket audit                      show CLI requests and hosts
+  aipocket audit web                  show requests made by the local web UI
   aipocket probe <provider>           search for an undocumented balance endpoint
   aipocket mcp                        run as an MCP server on stdio
+  aipocket web                        run a local web interface on 127.0.0.1:8787
   aipocket config path                print the config file location
   aipocket config add [provider]      print a config entry to paste, asking where
                                       the key should be read from (writes nothing)
@@ -60,8 +63,7 @@ flags:
   --config PATH     config file (default: see 'aipocket config path')
   --dry-run         (probe) list the requests it would make, send nothing
 
-AIPocket never stores credentials. The config file holds instructions for
-obtaining them:
+The CLI config holds credential instructions, not credentials:
 
   providers:
     openrouter:
@@ -69,8 +71,9 @@ obtaining them:
     deepseek:
       key: env:DEEPSEEK_API_KEY
 
-With no config at all, each provider's conventional environment variable is
-used. Run 'aipocket providers' to see them.
+With no CLI config, each provider's conventional environment variable is
+used. Run 'aipocket providers' to see them. The optional web interface
+stores keys in private files beside its separate web.yaml config.
 `
 
 func main() {
@@ -114,6 +117,40 @@ func run() int {
 			fmt.Fprintf(os.Stderr, "aipocket: %v\n", err)
 			return 1
 		}
+	}
+	if cmd == "audit" && len(args) == 1 && args[0] == "web" {
+		if *dryRun {
+			fmt.Fprint(os.Stderr, "aipocket: --dry-run applies to `aipocket probe`\n")
+			return 2
+		}
+		webPath, err := filepath.Abs(filepath.Join(filepath.Dir(path), "web.yaml"))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "aipocket: %v\n", err)
+			return 1
+		}
+		webCfg, err := core.LoadConfig(webPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "aipocket: %v\n", err)
+			return 2
+		}
+		if err := webCfg.ValidateAgainst(reg); err != nil {
+			fmt.Fprintf(os.Stderr, "aipocket: %s: %v\n", webPath, err)
+			return 2
+		}
+		return auditSelected(reg, webCfg, *asJSON, true)
+	}
+	if cmd == "web" {
+		if len(args) != 0 {
+			fmt.Fprint(os.Stderr, "usage: aipocket web\n")
+			return 2
+		}
+		if *dryRun {
+			fmt.Fprint(os.Stderr, "aipocket: --dry-run applies to `aipocket probe`, not to `aipocket web`\n")
+			return 2
+		}
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		return serveWeb(ctx, reg, path, *timeout)
 	}
 	cfg, err := core.LoadConfig(path)
 	if err != nil {
@@ -160,6 +197,10 @@ func run() int {
 		return listProviders(reg, cfg, *asJSON)
 
 	case "audit":
+		if len(args) != 0 {
+			fmt.Fprint(os.Stderr, "usage: aipocket audit [web]\n")
+			return 2
+		}
 		return audit(reg, cfg, *asJSON)
 
 	case "probe":
@@ -213,7 +254,7 @@ func parseArgs(fs *flag.FlagSet, argv []string) ([]string, error) {
 
 func isCommand(s string) bool {
 	switch s {
-	case "check", "providers", "audit", "probe", "mcp", "config", "version", "help":
+	case "check", "providers", "audit", "probe", "mcp", "web", "config", "version", "help":
 		return true
 	}
 	return false
@@ -314,13 +355,18 @@ func keySource(spec string) string {
 // and the fact that a `command:` credential helper is a program of the user's
 // own choosing, which AIPocket cannot account for.
 func audit(reg *manifest.Registry, cfg *core.Config, asJSON bool) int {
+	return auditSelected(reg, cfg, asJSON, false)
+}
+
+func auditSelected(reg *manifest.Registry, cfg *core.Config, asJSON, webOnly bool) int {
 	var entries []auditEntry
 	var probes []auditEntry
 	hosts := map[string]bool{}
 	proxies := map[string]bool{}
 
 	for _, p := range reg.All() {
-		if cfg.Providers[p.ID].Disabled {
+		pc, configured := cfg.Providers[p.ID]
+		if pc.Disabled || (webOnly && !configured) {
 			continue
 		}
 		src := keySource(credentialSpec(p, cfg))

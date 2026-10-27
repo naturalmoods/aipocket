@@ -1,7 +1,7 @@
 id: neuralwatt
 name: Neuralwatt
 status: undocumented
-console: https://portal.neuralwatt.com/
+console: https://portal.neuralwatt.com/dashboard
 docs: https://portal.neuralwatt.com/docs/api/overview
 notes: >-
   checked 2026-08-18: /v1/quota is documented as returning "account balance, usage

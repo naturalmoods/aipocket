@@ -112,10 +112,13 @@ config.yaml ──> core.LoadConfig ──────────────�
 These are not style preferences; each has a test that fails loudly if removed. Breaking one
 silently is the failure mode the project exists to prevent.
 
-**Three totals, never one.** `TotalVerified` contains only USD balances read from a
-*documented* field (`status: official`). Inferred (`undocumented`) and user-typed (`manual`)
-figures are totalled separately and listed in `Excluded`. Non-USD balances are reported but
-never converted — there is no exchange-rate logic anywhere and there should not be.
+**Three totals, never collapse their meaning.** `TotalVerified` contains only USD balances
+read from a *documented* field (`status: official`). Inferred (`undocumented`) and user-typed
+(`manual`) figures are totalled separately and listed in `Excluded`. The web headline also
+shows `TotalVerified + TotalInferred` as explicitly labelled API-reported USD, with verified,
+inferred and manual amounts visible separately; it never calls that sum verified. Non-USD
+balances are reported but never converted — there is no exchange-rate logic anywhere and
+there should not be.
 
 **Refuse to be confidently wrong.** A response matching no amount, a derived
 `total - used` that comes out negative, a `NaN`/`Inf`/hex-float amount (`strconv` accepts
@@ -139,7 +142,7 @@ forwards only the first. `HTTPError.Error()` omits the body altogether, so an
 ordinary `%v` log cannot leak one. Concatenating them back together would undo all
 three protections at once.
 
-**The config file holds no secrets, and errors about it echo nothing.**
+**Config YAML holds no literal secrets, and errors about it echo nothing.**
 `secret.Parse` requires a scheme, an upper-case `env:` name and a path-shaped `file:`
 value — every real key format is a valid POSIX variable name, so a looser rule printed
 mis-pasted keys back out. Specs are validated at *load* time, not per row.
@@ -159,7 +162,7 @@ New providers ship in a new release.
 (a 3xx is an error), 1 MiB body cap, deadline on every request. `fetch.NewWithTransport`
 exists for tests and proxies but still applies the redirect and timeout policy.
 
-**`aipocket audit` must be exhaustive and exact.** It prints every request that would be made.
+**`aipocket audit` must be exhaustive and exact.** It prints every CLI request that would be made. `aipocket audit web` does the same for the active entries in the separately managed `web.yaml`.
 Config overrides (`balance_url`) are reflected there, disabled providers omitted — and
 because audit omits them, `Checker.Selected` *and* `probe` refuse an explicitly named
 disabled provider rather than quietly contacting it. Any new network call must appear in
@@ -194,19 +197,22 @@ request.
   left, right now". Keeping state is what turns an auditable static binary into a service.
 - **No runway estimate** ("enough for 12 days"). It needs a spend rate, which needs
   history, which is the previous item.
-- **No TUI, no web UI, no alerts.** The table is the interface; `--json` is the
-  integration point.
+- **No TUI or alerts.** The table remains the CLI interface; `--json` is its
+  integration point. `aipocket web` is a loopback-only interface for local
+  balance checks and credential management.
 - **No keyring library.** `command:` delegates to whatever secret manager the machine
   already has, and works where a keyring dependency does not — WSL has no D-Bus session
   and no keyring daemon.
-- **AIPocket does not write your config.** No `aipocket set groq 25.00`. Rewriting the
+- **CLI commands do not write your config.** No `aipocket set groq 25.00`. Rewriting the
   file would lose its comments, and its whole purpose is to hold credential instructions.
   `aipocket config add` is the compatible half of that request: it asks which provider and
   which credential *form*, validates the spec with `secret.Parse`, and prints a block to
   paste — the same shape as `probe`'s closing manifest block. It never receives the key
   (a command-line key is in the shell history and the process arguments before it is
   anywhere else) and never touches the file. Both restrictions have tests in
-  `cmd/aipocket/configadd_test.go`.
+  `cmd/aipocket/configadd_test.go`. The explicit exception is `aipocket web`, which
+  manages a separate `web.yaml` and private key files, preserving CLI config comments.
+  CLI/MCP do not read `web.yaml` automatically.
 - **GET only.** `fetch` performs one operation. A provider reachable only by POST is not
   added; that restriction is what makes `aipocket audit`'s promise checkable.
 - **No remote registry.** An invariant above, repeated here because "just fetch the

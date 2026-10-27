@@ -2,7 +2,9 @@
 
 **How much prepaid credit is left at each of your LLM API providers — in one place, from one command.**
 
-A single static binary. No runtime, one dependency, and it never stores your API keys.
+A single static binary with a CLI and an optional loopback-only web interface.
+No runtime, one dependency. The CLI never stores your API keys; the web
+interface keeps them in private local files, never in YAML.
 
 ```
 $ aipocket
@@ -25,8 +27,8 @@ $ aipocket
   outside the verified total: siliconflow (inferred field), groq
     (user-maintained)
 
-  11 providers have no credential configured: cerebras, deepinfra, entrim,
-    gemini, mistral, nebius, neuralwatt, novita, replicate, together, xai
+  12 providers have no credential configured: cerebras, deepinfra, entrim,
+    gemini, mistral, nebius, neuralwatt, nous, novita, replicate, together, xai
     (--all)
 ```
 
@@ -63,11 +65,11 @@ should be: each becomes a visible error, never a green `0.00`.
 
 ## Providers
 
-Twenty, and the honest summary of the state of LLM billing APIs is the
+Twenty-one, and the honest summary of the state of LLM billing APIs is the
 `confidence` column: **five** providers publish a balance endpoint you can trust,
-two answer one whose response shape had to be inferred, and thirteen publish
-nothing at all — for those AIPocket checks the key and reports whatever figure you
-choose to keep.
+two answer one whose response shape had to be inferred, and fourteen publish
+no API-key-accessible balance endpoint — for those AIPocket checks the key and
+reports whatever figure you choose to keep.
 
 | provider | id | confidence | reports |
 |---|---|---|---|
@@ -84,6 +86,7 @@ choose to keep.
 | Nebius Token Factory | `nebius` | no-api | key check only |
 | Neuralwatt | `neuralwatt` | undocumented | balance (inferred) |
 | Novita AI | `novita` | official | balance |
+| Nous Research | `nous` | no-api | key check only |
 | OpenAI | `openai` | no-api | key check only |
 | OpenRouter | `openrouter` | official | balance |
 | Replicate | `replicate` | no-api | key check only |
@@ -118,9 +121,11 @@ aipocket --all                  # include the ones with no credential configured
 aipocket --json                 # machine-readable
 aipocket providers              # what's known, and where each key is read from
 aipocket audit                  # every host that would be contacted, before you run anything
+aipocket audit web              # ...the same for the providers added in the web UI
 aipocket probe entrim           # look for an undocumented balance endpoint
 aipocket probe entrim --dry-run # ...or just list the requests it would make
 aipocket config add             # pick a provider, say where its key comes from
+aipocket web                    # local browser UI at http://127.0.0.1:8787
 ```
 
 With no configuration at all, AIPocket reads each provider's conventional
@@ -162,6 +167,32 @@ portable and more secure than bundling a keyring library. Concretely: under WSL
 there is no D-Bus session and no running keyring daemon, so a cross-platform
 keyring dependency simply fails there — while `op`, `pass` and `bw` all work.
 
+## Local web interface
+
+`aipocket web` serves a small browser UI on `127.0.0.1:8787` and prints a login
+URL with a random token, valid until the server stops (Ctrl+C). In it you add a
+provider with its API key, optionally a manual USD figure for a provider with no
+balance API, refresh, and remove providers again. No JavaScript, no remote assets.
+
+The headline adds verified and inferred API balances and labels it as exactly
+that, with each part shown separately; manual figures stay outside the sum, and
+nothing in it is called verified that is not.
+
+It listens **only on loopback**, accepts only `127.0.0.1`/`localhost` as the
+Host, and needs the startup token even from another account on the same
+machine; the browser keeps it in an HTTP-only cookie. Do not proxy or tunnel
+the port to other machines — it is plain HTTP.
+
+This is the one place AIPocket writes configuration, and it does so in its own
+file: `web.yaml` next to the CLI's `config.yaml` (or next to `--config PATH`),
+with keys in the adjacent `keys/` directory as `0600` files. `web.yaml` holds
+`file:` references, never key values; an existing key file is never overwritten,
+and removing a provider deletes its key file too. Your CLI config and its
+comments are untouched, and the CLI and MCP server do not read `web.yaml` unless
+you point them at it (`aipocket --config …/web.yaml`). Anyone with access to
+your user account can read the key files — back them up only if you mean to back
+up the keys.
+
 ## Use from Claude, Cursor, or any MCP client
 
 ```bash
@@ -189,8 +220,9 @@ said.
 
 Short version:
 
-- AIPocket is not a secret store. It resolves credentials at runtime and holds
-  them in memory for one run. A literal key in the config file is *refused* when
+- The CLI is not a secret store. It resolves credentials at runtime and holds
+  them in memory for one run; the optional web interface stores keys in `0600`
+  files, never in YAML. A literal key in a config file is *refused* when
   the file is loaded, and the refusal does not echo it. `env:` names must be
   upper case for that reason: `gsk_…`, `nvapi_…` and `hf_…` are all valid POSIX
   variable names, so accepting one would print a mis-pasted key back out.
@@ -204,8 +236,8 @@ Short version:
   registry would be a "send your credentials here" primitive.
 - https only, redirects are refused, response bodies are capped, every request
   has a deadline.
-- `aipocket audit` prints the complete network footprint before you trust it with
-  anything — including the requests `aipocket probe` would make and any
+- `aipocket audit` (and `aipocket audit web` for the web UI's providers) prints
+  the complete network footprint before you trust it with anything — including the requests `aipocket probe` would make and any
   `HTTPS_PROXY` your environment imposes, since a proxy becomes another host that
   receives the credential.
 - Anything displayed is stripped of control characters. A provider error body is

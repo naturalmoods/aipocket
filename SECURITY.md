@@ -10,7 +10,7 @@ applied thoroughly, rather than ceremony.
 
 | Risk | Mitigation |
 |---|---|
-| Secrets at rest in a config file | AIPocket stores none. The config holds a `key:` *instruction* (`env:`, `command:`, `file:`), never a value. The scheme is mandatory and the target must be shaped like one: an `env:` name must be upper case, a `file:` path must be a path. Real key formats — `gsk_…`, `nvapi_…`, `hf_…` — are all valid POSIX variable names, so a pattern that merely asked for "letters, digits and underscores" printed a mis-pasted key straight back out as a "variable name". Every refusal is checked at config-load time and none of them echo the value. |
+| Secrets at rest in a config file | Config YAML stores no literal secrets. The CLI config holds a `key:` *instruction* (`env:`, `command:`, `file:`), never a value. The scheme is mandatory and the target must be shaped like one: an `env:` name must be upper case, a `file:` path must be a path. Real key formats — `gsk_…`, `nvapi_…`, `hf_…` — are all valid POSIX variable names, so a pattern that merely asked for "letters, digits and underscores" printed a mis-pasted key straight back out as a "variable name". Every refusal is checked at config-load time and none of them echo the value. |
 | Secrets leaking into logs, CI output, bug reports, assistant transcripts | Every resolved secret is registered with a redactor, applied to the **full** text before any shortening. Ordering matters: truncate-then-redact lets a key straddling the cut survive as a prefix, which is a real observed failure and now has a dedicated test. `HTTPError.Error()` omits the response body entirely, so the leak does not depend on every future caller remembering to redact. Provider 401 bodies are untrusted output — one real provider echoes part of the submitted key. |
 | A failing credential helper printing the token | A helper's stderr is discarded rather than surfaced. A *failing* helper is where a token turns up — a `set -x` trace, a curl error echoing the request — and no redactor can help, because nothing was resolved and so nothing was registered. The error names the helper and its exit status; run it yourself for the rest. |
 | A config file exhausting the machine | `file:` reads at most 64 KiB and only from a regular file (a FIFO would block the run before any timeout applied); a `command:` helper is bounded by output size, a 90-second deadline, and a `WaitDelay` for the case where the helper exits but a grandchild still holds the pipe. |
@@ -23,8 +23,9 @@ applied thoroughly, rather than ceremony.
 | A provider redirecting a key mid-request | Redirects are never followed. A 3xx is an error. |
 | Hostile or broken endpoint exhausting the host | 1 MiB response cap, per-request deadline. |
 | Supply-chain compromise via dependencies | One dependency (`gopkg.in/yaml.v3`). JSONPath, HTTP and MCP are in-tree. |
-| A world-readable credential file | `file:` sources refuse a mode with any group/other bits (Unix). |
-| Not knowing what the tool talks to | `aipocket audit` prints every request and host before you run anything — including the `aipocket probe` requests, which only run when asked but do send the key, and including an `HTTPS_PROXY` from your environment, which becomes a host that receives every credential. `aipocket probe --dry-run` lists a probe's requests without sending them. A disabled provider is contacted by nothing, not even an explicit `aipocket probe`. |
+| A world-readable credential file | `file:` sources refuse a mode with any group/other bits (Unix). The optional web UI creates key files with `0600`, never places their values in `web.yaml`, and refuses to overwrite an existing key file. |
+| Not knowing what the tool talks to | `aipocket audit` prints every CLI request and host, and `aipocket audit web` prints the configured web requests, before you run anything — including the `aipocket probe` requests, which only run when asked but do send the key, and including an `HTTPS_PROXY` from your environment, which becomes a host that receives every credential. `aipocket probe --dry-run` lists a probe's requests without sending them. A disabled provider is contacted by nothing, not even an explicit `aipocket probe`. |
+| Another local user or untrusted web page changing your keys | The optional web server binds only to `127.0.0.1:8787`, requires a random startup token (HTTP-only, SameSite=Strict cookie), accepts only loopback Host names, rejects explicit cross-site Origin/Fetch Metadata on POST, caps form bodies, and sets a frame-blocking Content Security Policy. It has no JavaScript or remote assets. Do not expose the port through a proxy or tunnel. |
 | An MCP client spending unbounded work | A batch is capped at 32 operations and shares one deadline. The 4 MiB line limit is not a limit here: a `get_balances` call is under 80 bytes and makes a full round of authenticated requests to every provider. |
 | A release built by an unreviewed workflow run | The test suite runs in a separate read-only job; only the release job holds `contents: write` and an OIDC identity, and it runs behind a protected environment. Actions are pinned to commit SHAs, not tags. Archives are uploaded as a draft and published only after the provenance attestation exists — published first, every download in that window fails verification exactly as a tampered file would. |
 
@@ -35,8 +36,12 @@ applied thoroughly, rather than ceremony.
   boundary would be theatre. Keep the config file as trusted as the binary.
 - **A compromised secret manager.** AIPocket delegates; it does not verify.
 - **Memory-resident secrets.** Keys live in process memory for the run's
-  duration. Go gives no reliable way to scrub them, and pretending otherwise
-  would be worse than saying so.
+  duration (or the web request's duration). Go gives no reliable way to scrub
+  them, and pretending otherwise would be worse than saying so.
+- **A compromised local user account.** The web UI stores keys on disk under
+  the user's config directory. Anyone with access to that account can read
+  them. The startup URL contains the token, so keep it and the terminal output
+  private. Plain HTTP is limited to loopback; it is not safe over a network.
 - **Partial or re-encoded echoes of a key.** The redactor matches whole values.
   A provider that returns your key split across fields, base64-encoded, or with
   characters escaped would defeat it. Full-value echo — the case seen in
